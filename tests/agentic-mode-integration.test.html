@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Mode Integration Tests</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #f1f5f9;
+        }
+        h1 { color: #eab308; margin-bottom: 10px; }
+        h2 { color: #06b6d4; margin-top: 30px; }
+        .test-suite { margin: 20px 0; }
+        .test-case {
+            background: #1e293b;
+            border-left: 4px solid #64748b;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-case.pass { border-left-color: #22c55e; }
+        .test-case.fail { border-left-color: #ef4444; }
+        .test-case.skip { border-left-color: #f59e0b; }
+        .test-name { font-weight: bold; margin-bottom: 8px; }
+        .test-result { font-size: 0.9em; color: #94a3b8; }
+        .test-error { color: #fca5a5; margin-top: 8px; font-family: monospace; }
+        .summary {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        .summary-item { display: inline-block; margin-right: 30px; }
+        .pass-count { color: #22c55e; }
+        .fail-count { color: #ef4444; }
+        .skip-count { color: #f59e0b; }
+        button {
+            background: #eab308;
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover { background: #ca8a04; }
+        .code-block {
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Agentic Mode Integration Tests</h1>
+    <p>Task 5.5: Pro Script Builder + Director Brain Agentic Mode</p>
+    
+    <div>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="runManualTests()">Run Manual Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div id="test-results"></div>
+
+    <script>
+        // Test framework
+        const tests = [];
+        let passCount = 0;
+        let failCount = 0;
+        let skipCount = 0;
+
+        function test(name, fn, options = {}) {
+            tests.push({ name, fn, skip: options.skip || false, manual: options.manual || false });
+        }
+
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(message || 'Assertion failed');
+            }
+        }
+
+        function assertEquals(actual, expected, message) {
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+                throw new Error(message || `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+            }
+        }
+
+        function assertNotNull(value, message) {
+            if (value === null || value === undefined) {
+                throw new Error(message || 'Value is null or undefined');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+            passCount = 0;
+            failCount = 0;
+            skipCount = 0;
+        }
+
+        function renderTestResult(testName, status, error = null) {
+            const resultsDiv = document.getElementById('test-results');
+            const testDiv = document.createElement('div');
+            testDiv.className = `test-case ${status}`;
+            
+            let html = `<div class="test-name">${testName}</div>`;
+            html += `<div class="test-result">Status: <strong>${status.toUpperCase()}</strong></div>`;
+            
+            if (error) {
+                html += `<div class="test-error">Error: ${error.message}</div>`;
+                if (error.stack) {
+                    html += `<div class="code-block">${error.stack}</div>`;
+                }
+            }
+            
+            testDiv.innerHTML = html;
+            resultsDiv.appendChild(testDiv);
+        }
+
+        function renderSummary() {
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'summary';
+            summaryDiv.innerHTML = `
+                <h2>Test Summary</h2>
+                <div class="summary-item">Total: <strong>${tests.length}</strong></div>
+                <div class="summary-item pass-count">Passed: <strong>${passCount}</strong></div>
+                <div class="summary-item fail-count">Failed: <strong>${failCount}</strong></div>
+                <div class="summary-item skip-count">Skipped: <strong>${skipCount}</strong></div>
+            `;
+            resultsDiv.appendChild(summaryDiv);
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            for (const test of tests) {
+                if (test.skip) {
+                    renderTestResult(test.name, 'skip');
+                    skipCount++;
+                    continue;
+                }
+                
+                if (test.manual) {
+                    renderTestResult(test.name, 'skip', { message: 'Manual test - run separately' });
+                    skipCount++;
+                    continue;
+                }
+                
+                try {
+                    await test.fn();
+                    renderTestResult(test.name, 'pass');
+                    passCount++;
+                } catch (error) {
+                    renderTestResult(test.name, 'fail', error);
+                    failCount++;
+                }
+            }
+            
+            renderSummary();
+        }
+
+        async function runManualTests() {
+            clearResults();
+            
+            const manualTests = tests.filter(t => t.manual);
+            
+            for (const test of manualTests) {
+                if (test.skip) {
+                    renderTestResult(test.name, 'skip');
+                    skipCount++;
+                    continue;
+                }
+                
+                try {
+                    await test.fn();
+                    renderTestResult(test.name, 'pass');
+                    passCount++;
+                } catch (error) {
+                    renderTestResult(test.name, 'fail', error);
+                    failCount++;
+                }
+            }
+            
+            renderSummary();
+        }
+
+        // ============================================================================
+        // TEST SUITE: Agentic Mode Integration
+        // ============================================================================
+
+        test('ExecutionEngine exists and has required methods', () => {
+            assert(typeof ExecutionEngine !== 'undefined', 'ExecutionEngine should be defined');
+            assert(typeof ExecutionEngine.validate === 'function', 'ExecutionEngine.validate should be a function');
+            assert(typeof ExecutionEngine.apply === 'function', 'ExecutionEngine.apply should be a function');
+        });
+
+        test('ACTION_TYPES contains all required action types', () => {
+            assert(typeof ACTION_TYPES !== 'undefined', 'ACTION_TYPES should be defined');
+            assert(ACTION_TYPES.ADD_SHOT === 'ADD_SHOT', 'ADD_SHOT should be defined');
+            assert(ACTION_TYPES.ADD_SCENE === 'ADD_SCENE', 'ADD_SCENE should be defined');
+            assert(ACTION_TYPES.REWRITE_SHOT === 'REWRITE_SHOT', 'REWRITE_SHOT should be defined');
+            assert(ACTION_TYPES.DELETE_SHOT === 'DELETE_SHOT', 'DELETE_SHOT should be defined');
+            assert(ACTION_TYPES.REORDER_SHOTS === 'REORDER_SHOTS', 'REORDER_SHOTS should be defined');
+            assert(ACTION_TYPES.SET_FIELD === 'SET_FIELD', 'SET_FIELD should be defined');
+            assert(ACTION_TYPES.APPLY_STYLE === 'APPLY_STYLE', 'APPLY_STYLE should be defined');
+        });
+
+        test('ActionCard component exists', () => {
+            assert(typeof ActionCard !== 'undefined', 'ActionCard component should be defined');
+        });
+
+        test('DirectorBrainPanel component exists', () => {
+            assert(typeof DirectorBrainPanel !== 'undefined', 'DirectorBrainPanel component should be defined');
+        });
+
+        test('ProScriptBuilder component exists', () => {
+            assert(typeof ProScriptBuilder !== 'undefined', 'ProScriptBuilder component should be defined');
+        });
+
+        test('ExecutionEngine validates ADD_SHOT action correctly', () => {
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [] }
+                ]
+            };
+            
+            const proposal = {
+                type: 'ADD_SHOT',
+                payload: {
+                    sceneId: 'scene-1',
+                    position: 0,
+                    subject: 'Test shot',
+                    selections: {}
+                }
+            };
+            
+            const result = ExecutionEngine.validate(proposal, mockAppActions);
+            assert(result.valid === true, 'ADD_SHOT validation should pass for valid proposal');
+        });
+
+        test('ExecutionEngine rejects invalid ADD_SHOT action', () => {
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [] }
+                ]
+            };
+            
+            const proposal = {
+                type: 'ADD_SHOT',
+                payload: {
+                    sceneId: 'non-existent-scene',
+                    position: 0,
+                    subject: 'Test shot',
+                    selections: {}
+                }
+            };
+            
+            const result = ExecutionEngine.validate(proposal, mockAppActions);
+            assert(result.valid === false, 'ADD_SHOT validation should fail for non-existent scene');
+            assert(result.reason.includes('not found'), 'Error message should mention scene not found');
+        });
+
+        test('ExecutionEngine validates ADD_SCENE action correctly', () => {
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [] }
+                ]
+            };
+            
+            const proposal = {
+                type: 'ADD_SCENE',
+                payload: {
+                    position: 1,
+                    name: 'New Scene'
+                }
+            };
+            
+            const result = ExecutionEngine.validate(proposal, mockAppActions);
+            assert(result.valid === true, 'ADD_SCENE validation should pass for valid proposal');
+        });
+
+        test('ExecutionEngine validates DELETE_SHOT action correctly', () => {
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [
+                        { id: 'shot-1', subject: 'Test shot' }
+                    ]}
+                ]
+            };
+            
+            const proposal = {
+                type: 'DELETE_SHOT',
+                payload: {
+                    shotId: 'shot-1'
+                }
+            };
+            
+            const result = ExecutionEngine.validate(proposal, mockAppActions);
+            assert(result.valid === true, 'DELETE_SHOT validation should pass for existing shot');
+        });
+
+        test('ExecutionEngine applies ADD_SHOT action correctly', () => {
+            let updatedScenes = null;
+            let historySaved = false;
+            
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [] }
+                ],
+                updateActiveProjectScenes: (updater) => {
+                    updatedScenes = updater(mockAppActions.scenes);
+                },
+                saveToHistory: () => {
+                    historySaved = true;
+                }
+            };
+            
+            const proposal = {
+                type: 'ADD_SHOT',
+                payload: {
+                    sceneId: 'scene-1',
+                    position: 0,
+                    subject: 'New shot',
+                    selections: {}
+                }
+            };
+            
+            const result = ExecutionEngine.apply(proposal, mockAppActions);
+            
+            assert(result.success === true, 'ADD_SHOT should succeed');
+            assert(historySaved === true, 'History should be saved before mutation');
+            assertNotNull(updatedScenes, 'Scenes should be updated');
+            assert(updatedScenes[0].shots.length === 1, 'Scene should have 1 shot after ADD_SHOT');
+            assert(updatedScenes[0].shots[0].subject === 'New shot', 'Shot subject should match');
+        });
+
+        test('ExecutionEngine applies ADD_SCENE action correctly', () => {
+            let updatedScenes = null;
+            let historySaved = false;
+            
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [] }
+                ],
+                updateActiveProjectScenes: (updater) => {
+                    updatedScenes = updater(mockAppActions.scenes);
+                },
+                saveToHistory: () => {
+                    historySaved = true;
+                }
+            };
+            
+            const proposal = {
+                type: 'ADD_SCENE',
+                payload: {
+                    position: 1,
+                    name: 'New Scene'
+                }
+            };
+            
+            const result = ExecutionEngine.apply(proposal, mockAppActions);
+            
+            assert(result.success === true, 'ADD_SCENE should succeed');
+            assert(historySaved === true, 'History should be saved before mutation');
+            assertNotNull(updatedScenes, 'Scenes should be updated');
+            assert(updatedScenes.length === 2, 'Should have 2 scenes after ADD_SCENE');
+            assert(updatedScenes[1].name === 'New Scene', 'New scene name should match');
+        });
+
+        test('ExecutionEngine applies DELETE_SHOT action correctly', () => {
+            let updatedScenes = null;
+            let historySaved = false;
+            
+            const mockAppActions = {
+                scenes: [
+                    { id: 'scene-1', name: 'Scene 1', shots: [
+                        { id: 'shot-1', subject: 'Shot to delete' },
+                        { id: 'shot-2', subject: 'Shot to keep' }
+                    ]}
+                ],
+                updateActiveProjectScenes: (updater) => {
+                    updatedScenes = updater(mockAppActions.scenes);
+                },
+                saveToHistory: () => {
+                    historySaved = true;
+                }
+            };
+            
+            const proposal = {
+                type: 'DELETE_SHOT',
+                payload: {
+                    shotId: 'shot-1'
+                }
+            };
+            
+            const result = ExecutionEngine.apply(proposal, mockAppActions);
+            
+            assert(result.success === true, 'DELETE_SHOT should succeed');
+            assert(historySaved === true, 'History should be saved before mutation');
+            assertNotNull(updatedScenes, 'Scenes should be updated');
+            assert(updatedScenes[0].shots.length === 1, 'Scene should have 1 shot after DELETE_SHOT');
+            assert(updatedScenes[0].shots[0].id === 'shot-2', 'Remaining shot should be shot-2');
+        });
+
+        // ============================================================================
+        // MANUAL TESTS (require user interaction)
+        // ============================================================================
+
+        test('Manual: Open Director Brain in ProScriptBuilder', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder\n2. Click the "Brain" button in the toolbar\n3. Verify Director Brain panel opens\n4. Verify panel shows script summary\n5. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did the Director Brain panel open correctly?');
+            assert(passed, 'User reported Director Brain panel did not open correctly');
+        }, { manual: true });
+
+        test('Manual: Verify action card rendering', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder with a script\n2. Open Director Brain\n3. Ask Director Brain to analyze the script\n4. Verify action cards are rendered with:\n   - Action type badge\n   - Label (imperative statement)\n   - Rationale (explanation)\n   - Confirm and Reject buttons\n5. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Were action cards rendered correctly?');
+            assert(passed, 'User reported action cards were not rendered correctly');
+        }, { manual: true });
+
+        test('Manual: Confirm action card and verify script update', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder with a script\n2. Open Director Brain\n3. Get an action card proposal (e.g., ADD_SHOT)\n4. Click "Confirm" button\n5. Verify:\n   - Action card marked "Applied"\n   - Script updates in editor\n   - Unsaved changes indicator appears\n6. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did the action apply correctly and update the script?');
+            assert(passed, 'User reported action did not apply correctly');
+        }, { manual: true });
+
+        test('Manual: Reject action card', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder with a script\n2. Open Director Brain\n3. Get an action card proposal\n4. Click "Reject" button\n5. Verify:\n   - Action card marked "Rejected"\n   - No script changes occur\n   - Card becomes semi-transparent\n6. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did the action reject correctly without changing the script?');
+            assert(passed, 'User reported action rejection did not work correctly');
+        }, { manual: true });
+
+        test('Manual: Undo action with Ctrl+Z', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder with a script\n2. Open Director Brain\n3. Confirm an action card\n4. Verify script updates\n5. Press Ctrl+Z (or Cmd+Z on Mac)\n6. Verify script reverts to previous state\n7. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did Ctrl+Z undo the action correctly?');
+            assert(passed, 'User reported undo did not work correctly');
+        }, { manual: true });
+
+        test('Manual: Redo action with Ctrl+Y', async () => {
+            alert('Manual Test:\n\n1. Continue from previous test (after undo)\n2. Press Ctrl+Y (or Cmd+Shift+Z on Mac)\n3. Verify script returns to modified state\n4. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did Ctrl+Y redo the action correctly?');
+            assert(passed, 'User reported redo did not work correctly');
+        }, { manual: true });
+
+        test('Manual: Multiple action confirmations', async () => {
+            alert('Manual Test:\n\n1. Open Pro Script Builder with a script\n2. Open Director Brain\n3. Get multiple action card proposals\n4. Confirm 2-3 actions in sequence\n5. Verify each action applies correctly\n6. Verify all actions tracked in history\n7. Undo multiple times to verify stack\n8. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did multiple actions apply correctly with proper history tracking?');
+            assert(passed, 'User reported multiple actions did not work correctly');
+        }, { manual: true });
+
+        test('Manual: Blueprint and character arc context', async () => {
+            alert('Manual Test:\n\n1. Create a script with specific story type and style\n2. Define character arcs in Character Arc Mapper\n3. Open Director Brain\n4. Ask for analysis\n5. Verify Director Brain references:\n   - Story type and style from blueprint\n   - Character arcs in analysis\n   - Context-aware suggestions\n6. Click OK if test passes, Cancel if it fails');
+            
+            const passed = confirm('Did Director Brain use blueprint and character arc context correctly?');
+            assert(passed, 'User reported Director Brain did not use context correctly');
+        }, { manual: true });
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            console.log('Agentic Mode Integration Tests loaded. Click "Run All Tests" to begin.');
+        });
+    </script>
+</body>
+</html>

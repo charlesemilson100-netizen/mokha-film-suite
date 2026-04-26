@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOKHA Performance Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%);
+            color: #f5f5f5;
+            padding: 40px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #eab308;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 40px;
+        }
+
+        .test-section {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .test-status {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .status-running {
+            background: rgba(6, 182, 212, 0.2);
+            color: #06b6d4;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-pass {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-fail {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .test-result {
+            font-size: 14px;
+            color: #aaa;
+            margin-top: 8px;
+        }
+
+        .metric {
+            display: inline-block;
+            margin-right: 20px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .metric-value {
+            color: #eab308;
+            font-weight: 700;
+        }
+
+        button {
+            background: linear-gradient(135deg, #eab308, #06b6d4);
+            border: none;
+            color: white;
+            padding: 14px 32px;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .system-info {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 30px;
+            font-size: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #eab308;
+            font-family: 'Courier New', monospace;
+        }
+
+        .overall-score {
+            text-align: center;
+            padding: 30px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 2px solid rgba(234, 179, 8, 0.3);
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+
+        .score-value {
+            font-size: 64px;
+            font-weight: 900;
+            color: #eab308;
+            margin: 10px 0;
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 MOKHA Performance Test</h1>
+        <p class="subtitle">Test your system's performance for optimal app settings</p>
+
+        <div class="system-info">
+            <div class="info-row">
+                <span class="info-label">Platform</span>
+                <span class="info-value" id="platform">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">CPU Cores</span>
+                <span class="info-value" id="cores">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Memory</span>
+                <span class="info-value" id="memory">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">GPU</span>
+                <span class="info-value" id="gpu">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Screen Resolution</span>
+                <span class="info-value" id="resolution">-</span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-header">
+                <span class="test-title">1. DOM Rendering Speed</span>
+                <span class="test-status status-pending" id="status-1">Pending</span>
+            </div>
+            <div class="test-result" id="result-1">Tests how fast the browser can render UI elements</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-header">
+                <span class="test-title">2. JavaScript Execution</span>
+                <span class="test-status status-pending" id="status-2">Pending</span>
+            </div>
+            <div class="test-result" id="result-2">Measures computational performance</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-header">
+                <span class="test-title">3. Memory Management</span>
+                <span class="test-status status-pending" id="status-3">Pending</span>
+            </div>
+            <div class="test-result" id="result-3">Tests memory allocation and garbage collection</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-header">
+                <span class="test-title">4. LocalStorage Performance</span>
+                <span class="test-status status-pending" id="status-4">Pending</span>
+            </div>
+            <div class="test-result" id="result-4">Measures data persistence speed</div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-header">
+                <span class="test-title">5. Animation Performance</span>
+                <span class="test-status status-pending" id="status-5">Pending</span>
+            </div>
+            <div class="test-result" id="result-5">Tests CSS animation and rendering smoothness</div>
+        </div>
+
+        <button id="runTest" onclick="runAllTests()">Run Performance Test</button>
+
+        <div class="overall-score" id="scoreSection" style="display: none;">
+            <div class="score-label">Overall Performance Score</div>
+            <div class="score-value" id="overallScore">-</div>
+            <div class="score-label" id="recommendation">-</div>
+        </div>
+    </div>
+
+    <script>
+        // Detect system info
+        document.getElementById('platform').textContent = navigator.platform;
+        document.getElementById('cores').textContent = navigator.hardwareConcurrency || 'Unknown';
+        document.getElementById('memory').textContent = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : 'Unknown';
+        document.getElementById('resolution').textContent = `${screen.width}x${screen.height}`;
+
+        // Detect GPU
+        (async () => {
+            if (navigator.gpu) {
+                try {
+                    const adapter = await navigator.gpu.requestAdapter();
+                    document.getElementById('gpu').textContent = adapter ? 'WebGPU Supported' : 'CPU Fallback';
+                } catch {
+                    document.getElementById('gpu').textContent = 'CPU Fallback';
+                }
+            } else {
+                document.getElementById('gpu').textContent = 'CPU Fallback';
+            }
+        })();
+
+        const updateStatus = (testNum, status, result) => {
+            const statusEl = document.getElementById(`status-${testNum}`);
+            const resultEl = document.getElementById(`result-${testNum}`);
+            
+            statusEl.className = `test-status status-${status}`;
+            statusEl.textContent = status === 'running' ? 'Running...' : status === 'pass' ? 'Pass' : 'Fail';
+            resultEl.innerHTML = result;
+        };
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function runAllTests() {
+            document.getElementById('runTest').disabled = true;
+            document.getElementById('scoreSection').style.display = 'none';
+            
+            const scores = [];
+
+            // Test 1: DOM Rendering
+            updateStatus(1, 'running', 'Testing...');
+            await sleep(100);
+            const domStart = performance.now();
+            for (let i = 0; i < 1000; i++) {
+                const div = document.createElement('div');
+                div.textContent = 'Test';
+                document.body.appendChild(div);
+                document.body.removeChild(div);
+            }
+            const domTime = performance.now() - domStart;
+            const domScore = Math.max(0, 100 - (domTime / 10));
+            scores.push(domScore);
+            updateStatus(1, 'pass', `<span class="metric">Time: <span class="metric-value">${domTime.toFixed(2)}ms</span></span><span class="metric">Score: <span class="metric-value">${domScore.toFixed(0)}/100</span></span>`);
+
+            // Test 2: JavaScript Execution
+            updateStatus(2, 'running', 'Testing...');
+            await sleep(100);
+            const jsStart = performance.now();
+            let sum = 0;
+            for (let i = 0; i < 10000000; i++) {
+                sum += Math.sqrt(i);
+            }
+            const jsTime = performance.now() - jsStart;
+            const jsScore = Math.max(0, 100 - (jsTime / 10));
+            scores.push(jsScore);
+            updateStatus(2, 'pass', `<span class="metric">Time: <span class="metric-value">${jsTime.toFixed(2)}ms</span></span><span class="metric">Score: <span class="metric-value">${jsScore.toFixed(0)}/100</span></span>`);
+
+            // Test 3: Memory Management
+            updateStatus(3, 'running', 'Testing...');
+            await sleep(100);
+            const memStart = performance.now();
+            const arrays = [];
+            for (let i = 0; i < 100; i++) {
+                arrays.push(new Array(10000).fill(Math.random()));
+            }
+            arrays.length = 0;
+            const memTime = performance.now() - memStart;
+            const memScore = Math.max(0, 100 - (memTime / 5));
+            scores.push(memScore);
+            updateStatus(3, 'pass', `<span class="metric">Time: <span class="metric-value">${memTime.toFixed(2)}ms</span></span><span class="metric">Score: <span class="metric-value">${memScore.toFixed(0)}/100</span></span>`);
+
+            // Test 4: LocalStorage
+            updateStatus(4, 'running', 'Testing...');
+            await sleep(100);
+            const lsStart = performance.now();
+            for (let i = 0; i < 100; i++) {
+                localStorage.setItem(`test_${i}`, JSON.stringify({ data: 'x'.repeat(100) }));
+                localStorage.getItem(`test_${i}`);
+            }
+            for (let i = 0; i < 100; i++) {
+                localStorage.removeItem(`test_${i}`);
+            }
+            const lsTime = performance.now() - lsStart;
+            const lsScore = Math.max(0, 100 - (lsTime / 5));
+            scores.push(lsScore);
+            updateStatus(4, 'pass', `<span class="metric">Time: <span class="metric-value">${lsTime.toFixed(2)}ms</span></span><span class="metric">Score: <span class="metric-value">${lsScore.toFixed(0)}/100</span></span>`);
+
+            // Test 5: Animation Performance
+            updateStatus(5, 'running', 'Testing...');
+            await sleep(100);
+            const animStart = performance.now();
+            const testDiv = document.createElement('div');
+            testDiv.style.cssText = 'position:fixed;top:0;left:0;width:100px;height:100px;background:red;';
+            document.body.appendChild(testDiv);
+            
+            for (let i = 0; i < 60; i++) {
+                testDiv.style.transform = `translateX(${i * 10}px)`;
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+            
+            document.body.removeChild(testDiv);
+            const animTime = performance.now() - animStart;
+            const animScore = Math.max(0, 100 - ((animTime - 1000) / 10));
+            scores.push(animScore);
+            updateStatus(5, 'pass', `<span class="metric">Time: <span class="metric-value">${animTime.toFixed(2)}ms</span></span><span class="metric">Score: <span class="metric-value">${animScore.toFixed(0)}/100</span></span>`);
+
+            // Calculate overall score
+            const overallScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+            document.getElementById('overallScore').textContent = overallScore;
+            
+            let recommendation = '';
+            if (overallScore >= 80) {
+                recommendation = '🚀 Excellent! Use Ultra quality settings';
+            } else if (overallScore >= 60) {
+                recommendation = '✅ Good! Use High quality settings';
+            } else if (overallScore >= 40) {
+                recommendation = '⚠️ Fair. Use Balanced quality settings';
+            } else {
+                recommendation = '⚠️ Low performance. Use Low quality settings';
+            }
+            
+            document.getElementById('recommendation').textContent = recommendation;
+            document.getElementById('scoreSection').style.display = 'block';
+            document.getElementById('runTest').disabled = false;
+        }
+    </script>
+</body>
+</html>

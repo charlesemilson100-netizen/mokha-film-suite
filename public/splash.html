@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOKHA FILM Suite</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 500px;
+            height: 300px;
+            background: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Main container */
+        .splash-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+            border: 1px solid #2a2a2a;
+        }
+
+        /* Top section with logo */
+        .splash-header {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            gap: 15px;
+        }
+
+        .logo-container {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .logo-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(234, 179, 8, 0.3));
+        }
+
+        .app-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+
+        .app-subtitle {
+            font-size: 11px;
+            color: #888888;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* Bottom section with progress */
+        .splash-footer {
+            background: #0f0f0f;
+            border-top: 1px solid #2a2a2a;
+            padding: 20px 30px;
+        }
+
+        .loading-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .loading-text {
+            font-size: 11px;
+            color: #888888;
+            letter-spacing: 0.5px;
+        }
+
+        .loading-percent {
+            font-size: 11px;
+            color: #eab308;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Progress bar */
+        .progress-track {
+            width: 100%;
+            height: 3px;
+            background: #1a1a1a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #eab308 0%, #06b6d4 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 8px rgba(234, 179, 8, 0.5);
+        }
+
+        /* Bottom info */
+        .splash-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .version-info {
+            font-size: 9px;
+            color: #555555;
+            letter-spacing: 0.5px;
+        }
+
+        .developer-info {
+            font-size: 9px;
+            color: #555555;
+            letter-spacing: 0.5px;
+        }
+
+        .developer-info span {
+            color: #888888;
+            font-weight: 500;
+        }
+
+        /* Subtle animation */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .logo-container {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="splash-wrapper">
+        <!-- Header with logo and title -->
+        <div class="splash-header">
+            <div class="logo-container">
+                <img src="logo.png" alt="MOKHA FILM Suite">
+            </div>
+            <div class="app-title">MOKHA FILM Suite</div>
+            <div class="app-subtitle">Professional AI Film Prompt Builder</div>
+        </div>
+
+        <!-- Footer with progress -->
+        <div class="splash-footer">
+            <div class="loading-info">
+                <span class="loading-text" id="loadingStatus">Initializing application...</span>
+                <span class="loading-percent" id="loadingPercent">0%</span>
+            </div>
+            
+            <div class="progress-track">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+
+            <div class="splash-meta">
+                <span class="version-info">Version 2.10.0</span>
+                <span class="developer-info">Developed by <span>Charles Emilson</span></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const progressBar = document.getElementById('progressBar');
+        const percentText = document.getElementById('loadingPercent');
+        const statusText = document.getElementById('loadingStatus');
+        
+        const loadingStages = [
+            { percent: 20, status: 'Loading core modules...' },
+            { percent: 40, status: 'Initializing AI engine...' },
+            { percent: 60, status: 'Loading components...' },
+            { percent: 80, status: 'Preparing workspace...' },
+            { percent: 100, status: 'Starting application...' }
+        ];
+
+        let currentStage = 0;
+        let currentProgress = 0;
+
+        function updateProgress() {
+            if (currentStage < loadingStages.length) {
+                const target = loadingStages[currentStage].percent;
+                
+                if (currentProgress < target) {
+                    currentProgress += 2;
+                    if (currentProgress > target) currentProgress = target;
+                    
+                    progressBar.style.width = currentProgress + '%';
+                    percentText.textContent = currentProgress + '%';
+                    
+                    setTimeout(updateProgress, 40);
+                } else {
+                    statusText.textContent = loadingStages[currentStage].status;
+                    currentStage++;
+                    setTimeout(updateProgress, 300);
+                }
+            }
+        }
+
+        // Start loading animation
+        setTimeout(updateProgress, 200);
+    </script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+# Implementation Plan: Director Agentic Mode
+
+## Overview
+
+Upgrade the existing `DirectorBrainPanel` from a read-only chat interface into an interactive cinematic co-director. All code goes inside the existing `<script type="text/babel">` block in `mokha-suite PRO Vqr.html`. No new npm dependencies. Order: constants → pure JS modules → React components → integration wiring → checkpoints.
+
+## Tasks
+
+- [x] 1. Define constants and data structures at module scope
+  - [x] 1.1 Define `DIRECTOR_SHOT_PRESETS` array with at minimum 4 named preset objects
+    - Each preset: `{ name, shotType, lens, lighting, mood, subjectNote, description, category }`
+    - Required presets: "Golden Hour CU", "Noir Interrogation MS", "Handheld Chase WS", "Kubrick Symmetry WS"
+    - Add at least 4 additional presets covering Emotional, Tension, Action, Style categories
+    - _Requirements: 11.1, 11.2_
+  - [x] 1.2 Define `ACTION_TYPES` constant object
+    - Keys and string values for all 9 supported types: `ADD_SHOT`, `REWRITE_SHOT`, `REORDER_SHOTS`, `DELETE_SHOT`, `APPLY_STYLE`, `SPLIT_SCENE`, `ADD_SCENE`, `SET_FIELD`, `APPLY_PRESET`
+    - _Requirements: 3.3_
+  - [x] 1.3 Define `INTENT_PATTERNS` array for IntentParser rule matching
+    - Each entry: `{ category, patterns: string[] }` where patterns are regex-compatible trigger strings
+    - Cover all 9 categories: `pacing`, `tension`, `coverage`, `continuity`, `style`, `emotional_arc`, `structure`, `character_presence`, `ideas`
+    - Include colloquial term mappings: `cold open` → `structure`, `act break` → `structure`, `money shot` → `coverage`, `motivated cut` → `pacing`, `eyeline match` → `continuity`
+    - _Requirements: 1.1, 1.2, 1.4_
+  - [x] 1.4 Define `AGENTIC_EXAMPLE_CHIPS` array (6 entries)
+    - Replace existing Director Brain chips with agentic-aware queries
+    - Include: coverage gap query, pacing query, ideas-mode query, style rewrite query, structure query, continuity query
+    - _Requirements: 9.7_
+
+- [x] 2. Implement IntentParser module
+  - [x] 2.1 Implement `IntentParser` plain JS object with `parse(query, projectSnapshot)` method
+    - Iterate `INTENT_PATTERNS`, return first matching `ParsedIntent` or `{ category: 'unknown', ... }`
+    - `ParsedIntent` shape: `{ category, scope: { type, id, index }, severity, rawQuery, isIdeasMode }`
+    - Severity heuristic: keywords like "no", "missing", "flat", "broken" → `'critical'`; "drags", "slow", "too many" → `'moderate'`; else `'minor'`
+    - _Requirements: 1.1, 1.2, 1.6_
+  - [x] 2.2 Implement `IntentParser.isIdeasQuery(query)` method
+    - Return `true` if query matches ideas-mode triggers: `idea`, `inspire`, `creative`, `what if`, `how could`, `more cinematic`
+    - _Requirements: 1.4, 12.1, 12.10_
+  - [x] 2.3 Implement `IntentParser.resolveReference(query, projectSnapshot)` method
+    - Parse "scene N", "the Nth shot", "my opening" (→ scene index 0), "the last shot" (→ last shot of active scene)
+    - Return matching scene or shot object from snapshot, or `null` if unresolvable
+    - _Requirements: 1.3_
+  - [ ]* 2.4 Write unit tests for IntentParser
+    - Test one representative query per intent category (9 tests)
+    - Test `resolveReference` with "scene 1", "scene 3", "my opening", "the last shot"
+    - Test `isIdeasQuery` with each trigger phrase
+    - _Requirements: 1.1, 1.2, 1.3_
+
+- [x] 3. Implement ExecutionEngine module
+  - [x] 3.1 Implement `ExecutionEngine.validate(proposal, appActions)` method
+    - Validate each of the 9 action types against current project state
+    - `ADD_SHOT`: sceneId must exist, position must be `0 ≤ pos ≤ scene.shots.length`
+    - `REWRITE_SHOT` / `DELETE_SHOT` / `SET_FIELD` / `APPLY_PRESET`: shotId must exist
+    - `REORDER_SHOTS`: shot must exist, `toIndex` must be valid
+    - `APPLY_STYLE`: style must be a key in `DIRECTOR_STYLES`, all shotIds must exist
+    - `SPLIT_SCENE`: scene must exist, `splitIndex` must be `1 ≤ idx < scene.shots.length`
+    - `ADD_SCENE`: position must be `0 ≤ pos ≤ scenes.length`
+    - Return `{ valid: boolean, reason?: string }`
+    - _Requirements: 4.8, 10.4_
+  - [x] 3.2 Implement `ExecutionEngine.apply(proposal, appActions)` method
+    - Call `validate()` first; return `{ success: false, error }` if invalid
+    - Call `appActions.saveToHistory()` before any state mutation
+    - Implement all 9 action type mutations via `appActions.updateActiveProjectScenes(...)`
+    - `ADD_SHOT`: insert new shot at `payload.position` in `payload.sceneId`
+    - `REWRITE_SHOT`: apply `FastBrain.applyDirectorStyle()` fields to target shot
+    - `REORDER_SHOTS`: splice shot from current index, insert at `payload.toIndex`
+    - `DELETE_SHOT`: filter out shot by `payload.shotId`
+    - `APPLY_STYLE`: apply `DIRECTOR_STYLES[payload.style]` fields to all `payload.shotIds`
+    - `SPLIT_SCENE`: split scene at `payload.splitIndex`, create new scene with tail shots
+    - `ADD_SCENE`: insert new empty scene at `payload.position`
+    - `SET_FIELD`: set `shot.selections[payload.field] = payload.value` on target shot
+    - `APPLY_PRESET`: merge all preset fields into `shot.selections` for all `payload.shotIds`
+    - Out-of-bounds `ADD_SHOT` / `ADD_SCENE` positions: clamp to end of array, log warning
+    - Return `{ success: true }` on success
+    - _Requirements: 4.2, 5.1–5.9, 10.2, 10.6_
+  - [ ]* 3.3 Write property test for ExecutionEngine — Property 2: No state change without confirmation
+    - **Property 2: No state change without confirmation**
+    - **Validates: Requirements 4.1, 4.3, 4.5, 10.5**
+  - [ ]* 3.4 Write property test for ExecutionEngine — Property 3: Execution correctness for all action types
+    - **Property 3: Execution correctness for all action types**
+    - **Validates: Requirements 4.2, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9**
+  - [ ]* 3.5 Write property test for ExecutionEngine — Property 4: Invalid proposals rejected without state mutation
+    - **Property 4: Invalid proposals are rejected without state mutation**
+    - **Validates: Requirements 4.8, 10.4**
+  - [ ]* 3.6 Write property test for ExecutionEngine — Property 5: Undo stack integrity after action application
+    - **Property 5: Undo stack integrity after action application**
+    - **Validates: Requirements 4.7, 11.8**
+  - [ ]* 3.7 Write unit tests for ExecutionEngine.validate
+    - Test each of the 9 action types with a valid payload (expect `{ valid: true }`)
+    - Test each of the 9 action types with an invalid payload (expect `{ valid: false }`)
+    - _Requirements: 4.8, 10.4_
+
+- [x] 4. Checkpoint — Core modules complete
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Implement AgenticResponseBuilder module
+  - [x] 5.1 Implement `AgenticResponseBuilder.buildActionCards(intent, projectSnapshot, sessionLog)` method
+    - Map each intent category to a set of `ActionProposal` objects based on snapshot analysis
+    - `pacing`: propose `REORDER_SHOTS` or `DELETE_SHOT` for overlong sequences
+    - `coverage`: propose `ADD_SHOT` for missing establishing shot or close-up
+    - `continuity`: propose `SET_FIELD` to fix costume/location/lighting inconsistencies
+    - `style`: propose `REWRITE_SHOT` or `APPLY_STYLE` with named Director_Style
+    - `structure`: propose `SPLIT_SCENE` or `ADD_SCENE` for act structure issues
+    - `tension`: propose `ADD_SHOT` or `REORDER_SHOTS` for tension escalation
+    - `emotional_arc`: propose `REWRITE_SHOT` or `ADD_SHOT` for missing emotional beats
+    - `character_presence`: propose `ADD_SHOT` for missing character coverage
+    - Each `ActionProposal`: `{ id, type, label, rationale, targetSceneId, targetShotId, payload, status: 'pending' }`
+    - Label in imperative form (e.g., "Add EWS before shot 1")
+    - Check `sessionLog` for matching `type + targetId + paramsHash` with `status === 'applied'`; skip duplicates
+    - Cap result at 5 cards
+    - _Requirements: 3.1, 3.2, 3.4, 3.7, 8.2_
+  - [x] 5.2 Implement `AgenticResponseBuilder.buildIdeaCards(intent, projectSnapshot)` method
+    - Generate 1–3 `IdeaCardData` objects for ideas-mode queries
+    - Each idea: `{ id, title, rationale, shotSequence, status: 'pending' }`
+    - Rationale ≤ 3 sentences; `shotSequence` e.g. "EWS → MS → CU (push-in reveal)"
+    - Cap result at 3 cards
+    - _Requirements: 12.1, 12.3, 12.8_
+  - [x] 5.3 Implement `AgenticResponseBuilder.expandIdea(ideaCard, projectSnapshot)` method
+    - Convert an `IdeaCardData` into 1–3 concrete `ActionProposal` objects (ADD_SHOT, APPLY_STYLE, etc.)
+    - Return the array of proposals for rendering as ActionCards
+    - _Requirements: 12.5_
+  - [x] 5.4 Implement `AgenticResponseBuilder.build(intent, snapshot, brainMode, engineRef, sessionLog)` async method
+    - Call `BrainRouter.route(intent.rawQuery, snapshot, brainMode, engineRef)` for the text portion
+    - Call `buildActionCards(intent, snapshot, sessionLog)` for action cards
+    - Call `buildIdeaCards(intent, snapshot)` if `intent.isIdeasMode === true`, else `[]`
+    - Return `AgenticResponse`: `{ text, actionCards, ideaCards, closingNote, source }`
+    - `closingNote`: one sentence on what to do next, using cinematic vocabulary
+    - If `intent.category === 'unknown'`: return plain text response with no action cards
+    - _Requirements: 2.1, 2.2, 2.6, 3.6, 7.1, 7.2_
+  - [x] 5.5 Implement `AgenticResponseBuilder.scan(projectSnapshot)` method
+    - Synchronous; analyze snapshot for highest-priority issue
+    - Priority order: missing coverage > continuity conflict > pacing > structural gap
+    - Return a single `AgenticResponse` or `null` if project is empty or no issues found
+    - _Requirements: 9.8_
+  - [ ]* 5.6 Write property test for AgenticResponseBuilder — Property 6: Action_Card count invariant
+    - **Property 6: Action_Card count invariant (actionCards.length ≤ 5)**
+    - **Validates: Requirements 3.7**
+  - [ ]* 5.7 Write property test for AgenticResponseBuilder — Property 7: Idea_Card count invariant
+    - **Property 7: Idea_Card count invariant (ideaCards.length ≤ 3)**
+    - **Validates: Requirements 12.8**
+  - [ ]* 5.8 Write property test for AgenticResponseBuilder — Property 8: Action_Card structural completeness
+    - **Property 8: Action_Card structural completeness (id, type, label, rationale, status all non-empty)**
+    - **Validates: Requirements 3.2, 7.4, 7.5**
+  - [ ]* 5.9 Write property test for AgenticResponseBuilder — Property 9: Session log deduplication
+    - **Property 9: Session log deduplication**
+    - **Validates: Requirements 8.2**
+  - [ ]* 5.10 Write property test for AgenticResponseBuilder — Property 10: No generic phrases in diagnostic responses
+    - **Property 10: No generic phrases ("looks good", "seems fine", "you might want to consider", "could be better", "not bad")**
+    - **Validates: Requirements 2.6, 6.1**
+  - [ ]* 5.11 Write property test for AgenticResponseBuilder — Property 11: Coverage diagnosis identifies specific missing shots
+    - **Property 11: Coverage diagnosis references specific missing shot type by name**
+    - **Validates: Requirements 2.5**
+  - [ ]* 5.12 Write property test for AgenticResponseBuilder — Property 12: Ideas-mode routing
+    - **Property 12: isIdeasQuery true → ideaCards.length > 0; isIdeasQuery false → no ideas-path ideaCards**
+    - **Validates: Requirements 12.1, 12.10**
+  - [ ]* 5.13 Write unit tests for AgenticResponseBuilder.scan
+    - Test with empty project (expect `null`)
+    - Test with single-scene project missing establishing shot (expect coverage action card)
+    - Test with multi-scene project with continuity conflict
+    - _Requirements: 9.8_
+
+- [x] 6. Checkpoint — AgenticResponseBuilder complete
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 7. Implement ActionCard React component
+  - [x] 7.1 Define `ActionCard` functional component
+    - Props: `{ proposal, onConfirm, onReject }`
+    - Render bordered card with: action type badge (e.g., "ADD SHOT"), imperative label, one-line rationale, target scene/shot reference
+    - Visual states driven by `proposal.status`:
+      - `pending`: gold border (`border-primary/60`), Confirm (gold) + Reject (muted) buttons
+      - `applied`: green tint (`border-green-500/40 bg-green-500/5`), "✓ Applied" label, buttons hidden
+      - `rejected`: muted/strikethrough (`opacity-50`), "✗ Rejected" label, buttons hidden
+      - `error`: red tint (`border-red-500/40`), inline error message from `proposal.error`
+    - Use existing `lg-*` classes and Tailwind; no new CSS
+    - _Requirements: 3.2, 3.5, 4.4, 7.4, 7.5, 7.6_
+  - [x] 7.2 Define `IdeaCard` functional component
+    - Props: `{ idea, onExplore, onDismiss }`
+    - Render with cyan/purple gradient border (`border-accent/60`) and "💡 IDEA" badge (visually distinct from ActionCard's gold)
+    - Display: concept title, rationale (≤3 sentences), shot sequence string
+    - Two action buttons: "Explore" (calls `onExplore`) and "Dismiss" (calls `onDismiss`)
+    - `status === 'explored'`: show "Expanded into actions" label, hide Explore button
+    - `status === 'dismissed'`: muted appearance, hide both buttons
+    - _Requirements: 12.3, 12.4, 12.6_
+  - [ ]* 7.3 Write unit tests for ActionCard rendering
+    - Test each of the 4 visual states (pending, applied, rejected, error)
+    - Test Confirm callback fires with correct proposal
+    - Test Reject callback fires with correct proposal
+    - _Requirements: 3.2, 4.4, 7.6_
+
+- [x] 8. Implement PresetPalette React component
+  - [x] 8.1 Define `PresetPalette` functional component
+    - Props: `{ isOpen, onClose, onSelectPreset, projectSnapshot }`
+    - Render as slide-in panel within `DirectorBrainPanel` (not a modal); use `animate-slide-in-right` class
+    - Display all `DIRECTOR_SHOT_PRESETS` as browsable cards
+    - Each card: preset name, shot type badge, one-line description, "Apply" button
+    - Contextual relevance scoring: sort presets by matching active scene's `lighting` and `mood` fields (simple string match score)
+    - Clicking "Apply" calls `onSelectPreset(preset)` and closes palette
+    - _Requirements: 11.4, 11.5, 11.6_
+  - [ ]* 8.2 Write unit tests for DIRECTOR_SHOT_PRESETS data
+    - Verify all 4 required presets exist by name
+    - Verify each preset has all required fields: `name`, `shotType`, `lens`, `lighting`, `mood`, `description`
+    - _Requirements: 11.1, 11.2_
+
+- [x] 9. Upgrade DirectorBrainPanel with agentic capabilities
+  - [x] 9.1 Add `sessionLog` state to `DirectorBrainPanel`
+    - Shape: `SessionLogEntry[]` — `{ proposalId, type, targetSceneId, targetShotId, paramsHash, status, appliedAt }`
+    - Initialize to `[]`; reset when chat is cleared or project changes
+    - _Requirements: 8.1, 8.4_
+  - [x] 9.2 Add `showPresetPalette` state to `DirectorBrainPanel`
+    - Initialize to `false`
+    - _Requirements: 11.4_
+  - [x] 9.3 Extend `messages` state shape to support agentic fields
+    - Add `actionCards: ActionProposal[]`, `ideaCards: IdeaCardData[]`, `closingNote: string` to message objects
+    - Default to `[]` / `''` for non-agentic messages (backward compatible with existing plain-text messages)
+    - _Requirements: 9.3_
+  - [x] 9.4 Replace `BrainRouter.route()` call in `handleSubmit` with `AgenticResponseBuilder.build()` pipeline
+    - Call `IntentParser.parse(input, projectSnapshot)` first
+    - Pass `ParsedIntent` to `AgenticResponseBuilder.build(intent, projectSnapshot, brainMode, deepBrainEngineRef, sessionLog)`
+    - Store full `AgenticResponse` in messages state (text + actionCards + ideaCards + closingNote + source)
+    - Preserve existing 30-second timeout and cancel flow; on timeout discard agentic response, show timeout message with no cards
+    - If `intent.category === 'unknown'`: show clarifying question using cinematic vocabulary, no action cards
+    - _Requirements: 1.5, 2.4, 7.1, 9.2, 9.5, 10.3_
+  - [x] 9.5 Add proactive scan `useEffect` to `DirectorBrainPanel`
+    - Run on panel mount (`[]` dependency)
+    - Call `AgenticResponseBuilder.scan(projectSnapshot)`
+    - If result is non-null: inject as first bot message (with action cards) before user types anything
+    - If result is `null` or throws: silently skip, show standard empty state
+    - _Requirements: 9.8_
+  - [x] 9.6 Implement `handleConfirmAction(proposalId, messageIndex)` in `DirectorBrainPanel`
+    - Call `ExecutionEngine.apply(proposal, appActions)` with the confirmed proposal
+    - On success: update `messages[messageIndex].actionCards[i].status` to `'applied'` in-place; append to `sessionLog`
+    - On failure: set `proposal.status` to `'rejected'`, set `proposal.error` to engine error message
+    - _Requirements: 4.2, 4.4, 4.7, 7.6_
+  - [x] 9.7 Implement `handleRejectAction(proposalId, messageIndex)` in `DirectorBrainPanel`
+    - Update `messages[messageIndex].actionCards[i].status` to `'rejected'` in-place
+    - Append to `sessionLog` with `status: 'rejected'`
+    - No state mutation
+    - _Requirements: 4.3, 7.6_
+  - [x] 9.8 Implement `handleExploreIdea(ideaCard, messageIndex)` in `DirectorBrainPanel`
+    - Call `AgenticResponseBuilder.expandIdea(ideaCard, projectSnapshot)`
+    - Append returned `ActionProposal[]` as a new bot message with action cards
+    - Update `messages[messageIndex].ideaCards[i].status` to `'explored'` in-place
+    - _Requirements: 12.5, 12.7_
+  - [x] 9.9 Implement `handleDismissIdea(ideaId, messageIndex)` in `DirectorBrainPanel`
+    - Update `messages[messageIndex].ideaCards[i].status` to `'dismissed'` in-place
+    - No state mutation
+    - _Requirements: 12.6_
+  - [x] 9.10 Implement `handleSelectPreset(preset)` in `DirectorBrainPanel`
+    - Create an `APPLY_PRESET` `ActionProposal` targeting the currently selected shot
+    - Append as a new bot message containing the single action card
+    - Close `PresetPalette` (`setShowPresetPalette(false)`)
+    - _Requirements: 11.6_
+  - [ ]* 9.11 Write property test for IntentParser — Property 1: Intent reference resolution round-trip
+    - **Property 1: resolveReference returns entity at correct index present in snapshot**
+    - **Validates: Requirements 1.3**
+  - [ ]* 9.12 Write property test for DirectorBrainPanel — Property 13: Independent card confirmation
+    - **Property 13: Confirming card at index I updates only actionCards[I].status, leaves all others unchanged**
+    - **Validates: Requirements 4.6**
+
+- [x] 10. Render ActionCards and IdeaCards in the message thread
+  - [x] 10.1 Update `DirectorBrainPanel` message renderer to render `ActionCard` components
+    - Inside each `lg-bubble-bot` bubble: render diagnosis text, then a visual divider, then `ActionCard` list (if `actionCards.length > 0`)
+    - Render `IdeaCard` list after action cards (if `ideaCards.length > 0`), with a visual separator between the two groups
+    - Render `closingNote` as a muted italic line below all cards
+    - Plain-text messages (no cards) render exactly as before using existing `lg-bubble-bot` styling
+    - _Requirements: 3.1, 7.1, 7.3, 9.3, 9.4, 12.9_
+  - [x] 10.2 Add "Show Presets" button to `DirectorBrainPanel` input bar or header
+    - Clicking opens `PresetPalette` (`setShowPresetPalette(true)`)
+    - Render `<PresetPalette>` conditionally when `showPresetPalette === true`
+    - _Requirements: 11.4_
+  - [x] 10.3 Update example query chips to reflect agentic capabilities
+    - Replace existing chips with `AGENTIC_EXAMPLE_CHIPS` content
+    - _Requirements: 9.7_
+
+- [x] 11. Pass `appActions` reference to DirectorBrainPanel
+  - [x] 11.1 Extend `appActions` object passed to `DirectorBrainPanel` with all fields required by `ExecutionEngine`
+    - Ensure `appActions` includes: `scenes`, `activeSceneId`, `activeProjectId`, `updateActiveProjectScenes`, `setProjects`, `setActiveSceneId`, `saveToHistory`
+    - Pass `appActions` as a prop to `DirectorBrainPanel` (or extend existing prop if already partially passed)
+    - _Requirements: 4.2, 5.10_
+  - [x] 11.2 Pass `selectedShotId` (currently selected shot) to `DirectorBrainPanel` for `APPLY_PRESET` targeting
+    - Used by `handleSelectPreset` to determine which shot to target
+    - _Requirements: 11.6_
+
+- [x] 12. Checkpoint — Full agentic pipeline wired
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 13. Final integration and polish
+  - [x] 13.1 Verify proactive scan fires on panel open and injects highest-priority issue
+    - Confirm `useEffect` with `[]` dependency runs `AgenticResponseBuilder.scan()` on mount
+    - _Requirements: 9.8_
+  - [x] 13.2 Verify session log deduplication prevents re-proposing applied actions
+    - Confirm `buildActionCards` skips proposals matching applied session log entries
+    - _Requirements: 8.2, 8.3_
+  - [x] 13.3 Verify undo stack is pushed before every `ExecutionEngine.apply()` mutation
+    - Confirm `saveToHistory()` is called before `updateActiveProjectScenes()` in all 9 action type branches
+    - _Requirements: 4.7_
+  - [x] 13.4 Verify `ActionCard` status updates in-place without re-rendering full chat thread
+    - Confirm only the specific `messages[i].actionCards[j].status` field is updated, not the full messages array replaced
+    - _Requirements: 7.6_
+  - [x] 13.5 Verify `Cmd+D` / `Ctrl+D` shortcut continues to open Director Brain panel
+    - Confirm existing shortcut handler is unaffected by the upgrade
+    - _Requirements: 9.6_
+  - [x] 13.6 Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- All code goes inside the existing `<script type="text/babel">` block in `mokha-suite PRO Vqr.html`
+- No new npm dependencies — use only what's already available (Tailwind, existing `lg-*` classes, existing state management)
+- `IntentParser`, `AgenticResponseBuilder`, and `ExecutionEngine` are plain JS objects defined at module scope — not React components
+- `DIRECTOR_SHOT_PRESETS`, `ACTION_TYPES`, `INTENT_PATTERNS`, and `AGENTIC_EXAMPLE_CHIPS` must be defined at module scope before any component that references them
+- `AgenticResponseBuilder.build()` wraps `BrainRouter.route()` — it does not replace it; existing Fast Brain / Deep Brain routing is preserved
+- `ExecutionEngine.apply()` MUST call `saveToHistory()` before any state mutation — no exceptions
+- Session log is local state inside `DirectorBrainPanel` — never persisted to localStorage
+- `ActionCard` and `IdeaCard` status updates must be in-place (update specific index in messages array) to avoid re-rendering the full chat thread
+- Property tests use fast-check generators (`arbSnapshot`, `arbProposal`) as defined in the design document

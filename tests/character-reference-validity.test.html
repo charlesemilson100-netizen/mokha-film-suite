@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Test: Character Reference Validity</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .test-header p {
+            margin: 5px 0;
+            opacity: 0.9;
+        }
+        .test-section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            font-size: 13px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .counterexample {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .counterexample h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1>🧪 Property Test: Character Reference Validity</h1>
+        <p><strong>Property 15:</strong> For any script document, all character names referenced in dialogue blocks SHALL correspond to characters defined in the Story_Blueprint or added by the user in the Pro Script Builder.</p>
+        <p><strong>Validates:</strong> Requirement 9.2</p>
+        <p><strong>Testing Framework:</strong> fast-check (Property-Based Testing)</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <div>
+            <label>Number of test cases: <input type="number" id="numTests" value="100" min="10" max="1000" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></label>
+        </div>
+        <button type="button" onclick="runPropertyTest()" id="runBtn">▶ Run Property Test</button>
+        <button type="button" onclick="runUnitTests()" id="unitBtn">🧪 Run Unit Tests</button>
+        <button type="button" onclick="runSingleTest()" id="singleBtn">🔍 Run Single Test (Debug)</button>
+    </div>
+
+    <div class="test-section" id="progressSection" style="display: none;">
+        <h2>Test Progress</h2>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar" style="width: 0%;">0%</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Tests Run</div>
+                <div class="stat-value" id="testsRun">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Passed</div>
+                <div class="stat-value" id="testsPassed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value" id="testsFailed">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section" id="resultsSection" style="display: none;">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <!-- Load fast-check from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/fast-check@3.15.0/lib/bundle.js"></script>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // Story Blueprint Engine - Minimal Implementation for Testing
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const StoryBlueprintEngine = {
+            createBlueprint: (data = {}) => {
+                const id = `blueprint-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                return {
+                    id,
+                    storyType: data.storyType || '',
+                    duration: data.duration || '',
+                    style: data.style || '',
+                    narrativeStructure: data.narrativeStructure || '',
+                    dynamicParameters: data.dynamicParameters || {},
+                    storyIntent: data.storyIntent || '',
+                    characters: data.characters || [],
+                    relationships: data.relationships || [],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            }
+        };
+
+        const ScriptEngine = {
+            createScript: (blueprintId, data = {}) => {
+                const id = `script-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                return {
+                    id,
+                    blueprintId,
+                    title: data.title || 'Untitled Script',
+                    author: data.author || '',
+                    scenes: data.scenes || [],
+                    metadata: {
+                        pageCount: 0,
+                        estimatedRuntime: 0,
+                        wordCount: 0,
+                        lastModified: new Date().toISOString(),
+                        writingMode: 'user-written'
+                    }
+                };
+            }
+        };
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Character Reference Validator
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const CharacterReferenceValidator = {
+            validate: (script, blueprint) => {
+                const definedCharacters = new Set();
+                
+                if (blueprint.characters && Array.isArray(blueprint.characters)) {
+                    blueprint.characters.forEach(char => {
+                        if (char.name) {
+                            definedCharacters.add(char.name.toUpperCase());
+                        }
+                    });
+                }
+                
+                const invalidReferences = [];
+                
+                if (script.scenes && Array.isArray(script.scenes)) {
+                    script.scenes.forEach((scene, sceneIndex) => {
+                        if (scene.shots && Array.isArray(scene.shots)) {
+                            scene.shots.forEach((shot, shotIndex) => {
+                                if (shot.elements && Array.isArray(shot.elements)) {
+                                    shot.elements.forEach((element, elementIndex) => {
+                                        if (element.type === 'dialogue' && element.characterName) {
+                                            const charNameUpper = element.characterName.toUpperCase();
+                                            if (!definedCharacters.has(charNameUpper)) {
+                                                invalidReferences.push({
+                                                    sceneIndex,
+                                                    shotIndex,
+                                                    elementIndex,
+                                                    characterName: element.characterName,
+                                                    location: `Scene ${sceneIndex + 1}, Shot ${shotIndex + 1}, Element ${elementIndex + 1}`
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                                
+                                if (shot.dialogueBlocks && Array.isArray(shot.dialogueBlocks)) {
+                                    shot.dialogueBlocks.forEach((db, dbIndex) => {
+                                        if (db.characterName) {
+                                            const charNameUpper = db.characterName.toUpperCase();
+                                            if (!definedCharacters.has(charNameUpper)) {
+                                                invalidReferences.push({
+                                                    sceneIndex,
+                                                    shotIndex,
+                                                    dialogueBlockIndex: dbIndex,
+                                                    characterName: db.characterName,
+                                                    location: `Scene ${sceneIndex + 1}, Shot ${shotIndex + 1}, Dialogue ${dbIndex + 1}`
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                return {
+                    valid: invalidReferences.length === 0,
+                    invalidReferences,
+                    definedCharacters: Array.from(definedCharacters)
+                };
+            }
+        };
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // fast-check Arbitraries (Generators)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const characterNameArb = fc.oneof(
+            fc.constantFrom('JOHN', 'SARAH', 'MIKE', 'EMMA', 'DAVID', 'LISA', 'ALEX', 'MARIA'),
+            fc.string({ minLength: 3, maxLength: 15 }).map(s => s.toUpperCase().replace(/[^A-Z]/g, 'A'))
+        );
+
+        const characterArb = fc.record({
+            id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `char-${s}`),
+            name: characterNameArb,
+            archetype: fc.constantFrom('Protagonist', 'Antagonist', 'Mentor', 'Love Interest', 'Sidekick'),
+            age: fc.oneof(fc.integer({ min: 18, max: 80 }), fc.constant('')),
+            role: fc.string({ minLength: 5, maxLength: 30 }),
+            description: fc.string({ minLength: 10, maxLength: 100 })
+        });
+
+        const dialogueElementArb = (characterNames) => {
+            return fc.record({
+                id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `element-${s}`),
+                type: fc.constant('dialogue'),
+                characterName: fc.oneof(
+                    fc.constantFrom(...characterNames),
+                    fc.string({ minLength: 3, maxLength: 10 }).map(s => s.toUpperCase())
+                ),
+                parenthetical: fc.oneof(fc.constant(''), fc.constantFrom('beat', 'whispers', 'shouting', 'nervously')),
+                dialogue: fc.string({ minLength: 10, maxLength: 100 })
+            });
+        };
+
+        const actionElementArb = fc.record({
+            id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `element-${s}`),
+            type: fc.constant('action'),
+            text: fc.string({ minLength: 10, maxLength: 150 })
+        });
+
+        const dialogueBlockArb = (characterNames) => {
+            return fc.record({
+                id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `dialogue-${s}`),
+                characterName: fc.oneof(
+                    fc.constantFrom(...characterNames),
+                    fc.string({ minLength: 3, maxLength: 10 }).map(s => s.toUpperCase())
+                ),
+                parenthetical: fc.oneof(fc.constant(''), fc.constantFrom('beat', 'whispers', 'shouting', 'nervously')),
+                dialogue: fc.string({ minLength: 10, maxLength: 100 }),
+                source: fc.constantFrom('user-written', 'template', 'ai-generated')
+            });
+        };
+
+        const shotArb = (characterNames) => {
+            return fc.record({
+                id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `shot-${s}`),
+                sceneHeading: fc.string({ minLength: 10, maxLength: 50 }).map(s => `INT. ${s.toUpperCase()} - DAY`),
+                actions: fc.array(fc.string({ minLength: 10, maxLength: 100 }), { minLength: 0, maxLength: 3 }),
+                elements: fc.array(
+                    fc.oneof(
+                        actionElementArb,
+                        dialogueElementArb(characterNames)
+                    ),
+                    { minLength: 0, maxLength: 5 }
+                ),
+                dialogueBlocks: fc.array(dialogueBlockArb(characterNames), { minLength: 0, maxLength: 3 })
+            });
+        };
+
+        const sceneArb = (characterNames) => {
+            return fc.record({
+                id: fc.string({ minLength: 5, maxLength: 10 }).map(s => `scene-${s}`),
+                label: fc.constantFrom('Inciting Incident', 'Rising Action', 'Midpoint', 'Climax', 'Resolution'),
+                shots: fc.array(shotArb(characterNames), { minLength: 1, maxLength: 5 })
+            });
+        };
+
+        const blueprintWithCharactersArb = fc.array(characterArb, { minLength: 1, maxLength: 8 }).chain(characters => {
+            const uniqueChars = [];
+            const seenNames = new Set();
+            characters.forEach(char => {
+                const upperName = char.name.toUpperCase();
+                if (!seenNames.has(upperName)) {
+                    seenNames.add(upperName);
+                    uniqueChars.push(char);
+                }
+            });
+            
+            return fc.constant({
+                blueprint: StoryBlueprintEngine.createBlueprint({
+                    storyType: 'Cinematic Film',
+                    duration: '30 min',
+                    style: 'cinematic',
+                    narrativeStructure: 'protagonist journey',
+                    storyIntent: 'Test story intent',
+                    characters: uniqueChars
+                }),
+                characterNames: uniqueChars.map(c => c.name)
+            });
+        });
+
+        const scriptWithCharactersArb = blueprintWithCharactersArb.chain(({ blueprint, characterNames }) => {
+            return fc.array(sceneArb(characterNames), { minLength: 1, maxLength: 5 }).map(scenes => {
+                const script = ScriptEngine.createScript(blueprint.id, {
+                    title: 'Test Script',
+                    author: 'Test Author',
+                    scenes
+                });
+                return { blueprint, script };
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Property Test Implementation
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function testCharacterReferenceValidity({ blueprint, script }) {
+            const result = CharacterReferenceValidator.validate(script, blueprint);
+            
+            const usedCharacterNames = new Set();
+            
+            if (script.scenes && Array.isArray(script.scenes)) {
+                script.scenes.forEach(scene => {
+                    if (scene.shots && Array.isArray(scene.shots)) {
+                        scene.shots.forEach(shot => {
+                            if (shot.elements && Array.isArray(shot.elements)) {
+                                shot.elements.forEach(element => {
+                                    if (element.type === 'dialogue' && element.characterName) {
+                                        usedCharacterNames.add(element.characterName.toUpperCase());
+                                    }
+                                });
+                            }
+                            if (shot.dialogueBlocks && Array.isArray(shot.dialogueBlocks)) {
+                                shot.dialogueBlocks.forEach(db => {
+                                    if (db.characterName) {
+                                        usedCharacterNames.add(db.characterName.toUpperCase());
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            
+            const definedCharacterNames = new Set(
+                (blueprint.characters || []).map(c => c.name.toUpperCase())
+            );
+            
+            const allUsedCharactersDefined = Array.from(usedCharacterNames).every(name => 
+                definedCharacterNames.has(name)
+            );
+            
+            if (allUsedCharactersDefined && !result.valid) {
+                throw new Error(
+                    `Validator incorrectly reported invalid references.\n` +
+                    `Defined characters: ${Array.from(definedCharacterNames).join(', ')}\n` +
+                    `Used characters: ${Array.from(usedCharacterNames).join(', ')}\n` +
+                    `Invalid references reported: ${JSON.stringify(result.invalidReferences)}`
+                );
+            }
+            
+            if (!allUsedCharactersDefined && result.valid) {
+                throw new Error(
+                    `Validator failed to detect invalid character references.\n` +
+                    `Defined characters: ${Array.from(definedCharacterNames).join(', ')}\n` +
+                    `Used characters: ${Array.from(usedCharacterNames).join(', ')}`
+                );
+            }
+            
+            if (!result.valid) {
+                result.invalidReferences.forEach(ref => {
+                    const refNameUpper = ref.characterName.toUpperCase();
+                    if (definedCharacterNames.has(refNameUpper)) {
+                        throw new Error(
+                            `Validator incorrectly flagged '${ref.characterName}' as invalid at ${ref.location}.\n` +
+                            `This character is defined in the blueprint.`
+                        );
+                    }
+                });
+            }
+            
+            return true;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Unit Tests
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function testValidScript() {
+            const blueprint = StoryBlueprintEngine.createBlueprint({
+                characters: [
+                    { id: 'char-1', name: 'JOHN', archetype: 'Protagonist', age: 30, role: 'Hero', description: 'Main character' },
+                    { id: 'char-2', name: 'SARAH', archetype: 'Love Interest', age: 28, role: 'Love Interest', description: 'Love interest' }
+                ]
+            });
+            
+            const script = ScriptEngine.createScript(blueprint.id, {
+                scenes: [
+                    {
+                        id: 'scene-1',
+                        label: 'Inciting Incident',
+                        shots: [
+                            {
+                                id: 'shot-1',
+                                sceneHeading: 'INT. COFFEE SHOP - DAY',
+                                actions: [],
+                                elements: [
+                                    { id: 'elem-1', type: 'dialogue', characterName: 'JOHN', parenthetical: '', dialogue: 'Hello, Sarah.' },
+                                    { id: 'elem-2', type: 'dialogue', characterName: 'SARAH', parenthetical: 'smiling', dialogue: 'Hi, John!' }
+                                ],
+                                dialogueBlocks: []
+                            }
+                        ]
+                    }
+                ]
+            });
+            
+            const result = CharacterReferenceValidator.validate(script, blueprint);
+            
+            if (!result.valid) {
+                throw new Error(`Valid script was incorrectly flagged as invalid: ${JSON.stringify(result.invalidReferences)}`);
+            }
+            
+            return true;
+        }
+
+        function testInvalidScript() {
+            const blueprint = StoryBlueprintEngine.createBlueprint({
+                characters: [
+                    { id: 'char-1', name: 'JOHN', archetype: 'Protagonist', age: 30, role: 'Hero', description: 'Main character' }
+                ]
+            });
+            
+            const script = ScriptEngine.createScript(blueprint.id, {
+                scenes: [
+                    {
+                        id: 'scene-1',
+                        label: 'Inciting Incident',
+                        shots: [
+                            {
+                                id: 'shot-1',
+                                sceneHeading: 'INT. COFFEE SHOP - DAY',
+                                actions: [],
+                                elements: [
+                                    { id: 'elem-1', type: 'dialogue', characterName: 'JOHN', parenthetical: '', dialogue: 'Hello, Sarah.' },
+                                    { id: 'elem-2', type: 'dialogue', characterName: 'SARAH', parenthetical: 'smiling', dialogue: 'Hi, John!' }
+                                ],
+                                dialogueBlocks: []
+                            }
+                        ]
+                    }
+                ]
+            });
+            
+            const result = CharacterReferenceValidator.validate(script, blueprint);
+            
+            if (result.valid) {
+                throw new Error('Invalid script was incorrectly flagged as valid');
+            }
+            
+            if (result.invalidReferences.length !== 1) {
+                throw new Error(`Expected 1 invalid reference, found ${result.invalidReferences.length}`);
+            }
+            
+            if (result.invalidReferences[0].characterName !== 'SARAH') {
+                throw new Error(`Expected invalid character 'SARAH', found '${result.invalidReferences[0].characterName}'`);
+            }
+            
+            return true;
+        }
+
+        function testCaseInsensitiveMatching() {
+            const blueprint = StoryBlueprintEngine.createBlueprint({
+                characters: [
+                    { id: 'char-1', name: 'John', archetype: 'Protagonist', age: 30, role: 'Hero', description: 'Main character' }
+                ]
+            });
+            
+            const script = ScriptEngine.createScript(blueprint.id, {
+                scenes: [
+                    {
+                        id: 'scene-1',
+                        label: 'Inciting Incident',
+                        shots: [
+                            {
+                                id: 'shot-1',
+                                sceneHeading: 'INT. COFFEE SHOP - DAY',
+                                actions: [],
+                                elements: [
+                                    { id: 'elem-1', type: 'dialogue', characterName: 'JOHN', parenthetical: '', dialogue: 'Hello.' }
+                                ],
+                                dialogueBlocks: [
+                                    { id: 'db-1', characterName: 'john', parenthetical: '', dialogue: 'Hi.', source: 'user-written' }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            });
+            
+            const result = CharacterReferenceValidator.validate(script, blueprint);
+            
+            if (!result.valid) {
+                throw new Error(`Case-insensitive matching failed: ${JSON.stringify(result.invalidReferences)}`);
+            }
+            
+            return true;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // UI Functions
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function showResults(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = message;
+            resultsDiv.appendChild(resultDiv);
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressBar').textContent = percent + '%';
+            document.getElementById('testsRun').textContent = current;
+        }
+
+        function runUnitTests() {
+            clearResults();
+            document.getElementById('progressSection').style.display = 'block';
+            
+            const tests = [
+                { name: 'Valid script with all characters defined', fn: testValidScript },
+                { name: 'Invalid script with undefined character', fn: testInvalidScript },
+                { name: 'Case-insensitive character matching', fn: testCaseInsensitiveMatching }
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            tests.forEach((test, index) => {
+                try {
+                    test.fn();
+                    passed++;
+                    showResults(`✅ Unit Test ${index + 1}: ${test.name} - PASSED`, 'pass');
+                } catch (error) {
+                    failed++;
+                    showResults(`❌ Unit Test ${index + 1}: ${test.name} - FAILED<br><pre>${error.message}</pre>`, 'fail');
+                }
+                updateProgress(index + 1, tests.length);
+            });
+            
+            document.getElementById('testsPassed').textContent = passed;
+            document.getElementById('testsFailed').textContent = failed;
+            
+            if (failed === 0) {
+                showResults(`<strong>✅ All ${passed} unit tests passed!</strong>`, 'pass');
+            } else {
+                showResults(`<strong>⚠️ ${failed} of ${tests.length} unit tests failed</strong>`, 'fail');
+            }
+        }
+
+        async function runPropertyTest() {
+            clearResults();
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('singleBtn').disabled = true;
+            document.getElementById('unitBtn').disabled = true;
+            
+            const numTests = parseInt(document.getElementById('numTests').value);
+            
+            showResults(`<strong>Running ${numTests} property-based test cases...</strong>`, 'info');
+            
+            const property = fc.property(scriptWithCharactersArb, testCharacterReferenceValidity);
+            
+            try {
+                await fc.assert(property, { 
+                    numRuns: numTests, 
+                    verbose: false,
+                    reporter: (runDetails) => {
+                        if (runDetails.failed) {
+                            updateProgress(runDetails.numRuns, numTests);
+                        } else {
+                            updateProgress(runDetails.numRuns, numTests);
+                        }
+                    }
+                });
+                
+                document.getElementById('testsPassed').textContent = numTests;
+                document.getElementById('testsFailed').textContent = 0;
+                
+                showResults(
+                    `<strong>✅ Property Test PASSED</strong><br><br>` +
+                    `All ${numTests} randomly generated test cases passed!<br>` +
+                    `Character reference validation works correctly for all generated scripts.`,
+                    'pass'
+                );
+            } catch (error) {
+                document.getElementById('testsFailed').textContent = 1;
+                
+                let counterexampleHtml = '';
+                if (error.counterexample) {
+                    counterexampleHtml = `<div class="counterexample">
+                        <h3>Counterexample Found:</h3>
+                        <pre>${JSON.stringify(error.counterexample, null, 2)}</pre>
+                    </div>`;
+                }
+                
+                showResults(
+                    `<strong>❌ Property Test FAILED</strong><br><br>` +
+                    `<pre>${error.message}</pre>` +
+                    counterexampleHtml,
+                    'fail'
+                );
+            } finally {
+                document.getElementById('runBtn').disabled = false;
+                document.getElementById('singleBtn').disabled = false;
+                document.getElementById('unitBtn').disabled = false;
+            }
+        }
+
+        function runSingleTest() {
+            clearResults();
+            document.getElementById('progressSection').style.display = 'block';
+            
+            showResults('<strong>Running single test case for debugging...</strong>', 'info');
+            
+            try {
+                const testData = fc.sample(scriptWithCharactersArb, 1)[0];
+                
+                showResults(
+                    `<strong>Generated Test Data:</strong><br>` +
+                    `<pre>${JSON.stringify({
+                        blueprintId: testData.blueprint.id,
+                        characters: testData.blueprint.characters.map(c => c.name),
+                        scenes: testData.script.scenes.length,
+                        shots: testData.script.scenes.reduce((acc, s) => acc + s.shots.length, 0)
+                    }, null, 2)}</pre>`,
+                    'info'
+                );
+                
+                testCharacterReferenceValidity(testData);
+                
+                const result = CharacterReferenceValidator.validate(testData.script, testData.blueprint);
+                
+                showResults(
+                    `<strong>✅ Single Test PASSED</strong><br><br>` +
+                    `<strong>Validation Result:</strong><br>` +
+                    `<pre>${JSON.stringify(result, null, 2)}</pre>`,
+                    'pass'
+                );
+                
+                document.getElementById('testsPassed').textContent = 1;
+                document.getElementById('testsFailed').textContent = 0;
+                updateProgress(1, 1);
+            } catch (error) {
+                showResults(
+                    `<strong>❌ Single Test FAILED</strong><br><br>` +
+                    `<pre>${error.message}</pre>`,
+                    'fail'
+                );
+                
+                document.getElementById('testsPassed').textContent = 0;
+                document.getElementById('testsFailed').textContent = 1;
+                updateProgress(1, 1);
+            }
+        }
+    </script>
+</body>
+</html>

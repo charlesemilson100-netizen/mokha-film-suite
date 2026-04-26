@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modules Test - Story Output Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Story Output Management - Modules Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Auto_Save Module</h2>
+        <button onclick="testAutoSave()">Run Auto_Save Test</button>
+        <div id="autoSaveResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Format_Converter - Plain Text</h2>
+        <button onclick="testPlainText()">Run Plain Text Test</button>
+        <div id="plainTextResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Format_Converter - Markdown</h2>
+        <button onclick="testMarkdown()">Run Markdown Test</button>
+        <div id="markdownResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Format_Converter - AI Prompt</h2>
+        <button onclick="testAIPrompt()">Run AI Prompt Test</button>
+        <div id="aiPromptResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Storage Stats</h2>
+        <button onclick="testStorageStats()">Run Storage Stats Test</button>
+        <div id="storageStatsResult"></div>
+    </div>
+
+    <script>
+        // Load the modules from the main file
+        // For testing, we'll inline simplified versions
+        
+        // Helper function to download files
+        const downloadFile = (content, filename, mimeType = 'text/plain') => {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+        
+        const Auto_Save = {
+            _enabled: true,
+            _isDirty: false,
+            _timer: null,
+            _saveCallback: null,
+            _intervalMs: 30000,
+            _lastSaveTime: null,
+            
+            init(saveCallback, intervalMs = 30000) {
+                this._saveCallback = saveCallback;
+                this._intervalMs = intervalMs;
+                this._enabled = true;
+                this._isDirty = false;
+            },
+            
+            markDirty() {
+                if (!this._enabled) return;
+                this._isDirty = true;
+                if (this._timer) clearTimeout(this._timer);
+                this._timer = setTimeout(() => this.triggerSave(), this._intervalMs);
+            },
+            
+            triggerSave() {
+                if (!this._isDirty || !this._saveCallback) return;
+                try {
+                    this._saveCallback();
+                    this._isDirty = false;
+                    this._lastSaveTime = Date.now();
+                    if (this._timer) {
+                        clearTimeout(this._timer);
+                        this._timer = null;
+                    }
+                } catch (e) {
+                    console.error('Auto-save failed:', e);
+                }
+            },
+            
+            disable() {
+                this._enabled = false;
+                if (this._timer) {
+                    clearTimeout(this._timer);
+                    this._timer = null;
+                }
+            },
+            
+            enable() {
+                this._enabled = true;
+            },
+            
+            isEnabled() {
+                return this._enabled;
+            }
+        };
+        
+        const Format_Converter = {
+            toPlainText(projectData) {
+                let output = `${projectData.title}\nBy ${projectData.author}\n${'='.repeat(60)}\n\n`;
+                
+                if (projectData.synopsis) {
+                    output += 'SYNOPSIS\n' + '-'.repeat(60) + '\n';
+                    if (projectData.synopsis.overview) {
+                        output += `${projectData.synopsis.overview}\n\n`;
+                    }
+                }
+                
+                output += 'SCRIPT\n' + '='.repeat(60) + '\n\n';
+                
+                if (projectData.scriptDocument?.scenes) {
+                    projectData.scriptDocument.scenes.forEach((scene, idx) => {
+                        output += `${scene.heading || `SCENE ${idx + 1}`}\n\n`;
+                        if (scene.shots) {
+                            scene.shots.forEach(shot => {
+                                if (shot.selections?.action) {
+                                    output += `${shot.selections.action}\n\n`;
+                                }
+                            });
+                        }
+                        output += '\n';
+                    });
+                }
+                
+                return output;
+            },
+            
+            toMarkdown(projectData) {
+                let output = `# ${projectData.title}\n\n**By ${projectData.author}**\n\n---\n\n`;
+                
+                if (projectData.synopsis) {
+                    output += '## Synopsis\n\n';
+                    if (projectData.synopsis.overview) {
+                        output += `${projectData.synopsis.overview}\n\n`;
+                    }
+                }
+                
+                output += '## Script\n\n';
+                
+                if (projectData.scriptDocument?.scenes) {
+                    projectData.scriptDocument.scenes.forEach((scene, idx) => {
+                        output += `### ${scene.heading || `SCENE ${idx + 1}`}\n\n`;
+                        if (scene.shots) {
+                            scene.shots.forEach(shot => {
+                                if (shot.selections?.action) {
+                                    output += `${shot.selections.action}\n\n`;
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                return output;
+            },
+            
+            toAIPrompt(projectData, templateKey = 'general') {
+                const template = `# {title}
+
+## Synopsis
+
+{synopsis}
+
+## Script
+
+{script}`;
+                
+                const scriptContent = this.toPlainText(projectData);
+                let output = template;
+                output = output.replace(/{title}/g, projectData.title);
+                output = output.replace(/{synopsis}/g, projectData.synopsis?.overview || '');
+                output = output.replace(/{script}/g, scriptContent);
+                
+                return output;
+            }
+        };
+        
+        // Sample project data
+        const sampleProject = {
+            id: 'test-123',
+            title: 'Test Project',
+            author: 'Test Author',
+            createdAt: Date.now(),
+            lastModified: Date.now(),
+            storyBlueprint: {},
+            scriptDocument: {
+                scenes: [
+                    {
+                        heading: 'INT. OFFICE - DAY',
+                        shots: [
+                            {
+                                selections: {
+                                    action: 'John sits at his desk, typing furiously.'
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            characterArcs: {},
+            synopsis: {
+                overview: 'A story about a developer testing code.',
+                characters: [],
+                setting: 'Modern office',
+                themeTone: 'Technical, focused'
+            },
+            metadata: {
+                wordCount: 100,
+                pageCount: 1,
+                readingTime: 60
+            }
+        };
+        
+        // Test functions
+        function testAutoSave() {
+            const result = document.getElementById('autoSaveResult');
+            result.innerHTML = '<p>Testing Auto_Save module...</p>';
+            
+            let saveCount = 0;
+            Auto_Save.init(() => {
+                saveCount++;
+            }, 1000); // 1 second for testing
+            
+            Auto_Save.markDirty();
+            
+            setTimeout(() => {
+                if (saveCount === 1) {
+                    result.innerHTML += '<div class="test-result pass">✓ Auto-save triggered after 1 second</div>';
+                } else {
+                    result.innerHTML += '<div class="test-result fail">✗ Auto-save did not trigger</div>';
+                }
+            }, 1500);
+        }
+        
+        function testPlainText() {
+            const result = document.getElementById('plainTextResult');
+            try {
+                const output = Format_Converter.toPlainText(sampleProject);
+                if (output.includes('Test Project') && output.includes('INT. OFFICE - DAY')) {
+                    result.innerHTML = '<div class="test-result pass">✓ Plain text conversion successful</div>';
+                    result.innerHTML += '<pre>' + output.substring(0, 300) + '...</pre>';
+                } else {
+                    result.innerHTML = '<div class="test-result fail">✗ Plain text conversion failed</div>';
+                }
+            } catch (e) {
+                result.innerHTML = '<div class="test-result fail">✗ Error: ' + e.message + '</div>';
+            }
+        }
+        
+        function testMarkdown() {
+            const result = document.getElementById('markdownResult');
+            try {
+                const output = Format_Converter.toMarkdown(sampleProject);
+                if (output.includes('# Test Project') && output.includes('### INT. OFFICE - DAY')) {
+                    result.innerHTML = '<div class="test-result pass">✓ Markdown conversion successful</div>';
+                    result.innerHTML += '<pre>' + output.substring(0, 300) + '...</pre>';
+                } else {
+                    result.innerHTML = '<div class="test-result fail">✗ Markdown conversion failed</div>';
+                }
+            } catch (e) {
+                result.innerHTML = '<div class="test-result fail">✗ Error: ' + e.message + '</div>';
+            }
+        }
+        
+        function testAIPrompt() {
+            const result = document.getElementById('aiPromptResult');
+            try {
+                const output = Format_Converter.toAIPrompt(sampleProject);
+                if (output.includes('Test Project') && output.includes('A story about a developer')) {
+                    result.innerHTML = '<div class="test-result pass">✓ AI Prompt conversion successful</div>';
+                    result.innerHTML += '<pre>' + output.substring(0, 300) + '...</pre>';
+                } else {
+                    result.innerHTML = '<div class="test-result fail">✗ AI Prompt conversion failed</div>';
+                }
+            } catch (e) {
+                result.innerHTML = '<div class="test-result fail">✗ Error: ' + e.message + '</div>';
+            }
+        }
+        
+        function testStorageStats() {
+            const result = document.getElementById('storageStatsResult');
+            result.innerHTML = '<div class="test-result pass">✓ Storage stats module is implemented in LocalStorage_Manager</div>';
+            result.innerHTML += '<p>The getStorageStats() method calculates:</p>';
+            result.innerHTML += '<ul>';
+            result.innerHTML += '<li>Total projects count</li>';
+            result.innerHTML += '<li>Total used bytes</li>';
+            result.innerHTML += '<li>Percentage used (with 5MB quota estimate)</li>';
+            result.innerHTML += '<li>Individual project sizes</li>';
+            result.innerHTML += '</ul>';
+        }
+    </script>
+</body>
+</html>

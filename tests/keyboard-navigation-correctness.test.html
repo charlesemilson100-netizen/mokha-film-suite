@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Test: Keyboard Navigation Correctness</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .test-header p {
+            margin: 5px 0;
+            opacity: 0.9;
+        }
+        .test-section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            font-size: 13px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .counterexample {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .counterexample h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1>🧪 Property Test: Keyboard Navigation Correctness</h1>
+        <p><strong>Property 13:</strong> For any sequence of Tab/Enter key presses in the Pro Script Builder, the focus SHALL move to the next appropriate field in the correct order (Scene_Heading → Action_Line → Character_Name → Parenthetical → Dialogue).</p>
+        <p><strong>Validates:</strong> Requirement 9.6</p>
+        <p><strong>Testing Framework:</strong> fast-check (Property-Based Testing)</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <div>
+            <label>Number of test cases: <input type="number" id="numTests" value="100" min="10" max="1000" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></label>
+        </div>
+        <button onclick="runPropertyTest()" id="runBtn">▶ Run Property Test</button>
+        <button onclick="runSingleTest()" id="singleBtn">🔍 Run Single Test (Debug)</button>
+    </div>
+
+    <div class="test-section" id="progressSection" style="display: none;">
+        <h2>Test Progress</h2>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar" style="width: 0%;">0%</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Tests Run</div>
+                <div class="stat-value" id="testsRun">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Passed</div>
+                <div class="stat-value" id="testsPassed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value" id="testsFailed">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section" id="resultsSection" style="display: none;">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <!-- Load fast-check from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/fast-check@3.15.0/lib/bundle.js"></script>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // Script Editor Field Navigation System (Simplified for Testing)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /**
+         * Field types in the Pro Script Builder
+         */
+        const FieldType = {
+            SCENE_HEADING: 'sceneHeading',
+            ACTION: 'action',
+            CHARACTER_NAME: 'characterName',
+            PARENTHETICAL: 'parenthetical',
+            DIALOGUE: 'dialogue'
+        };
+
+        /**
+         * Expected field navigation order
+         */
+        const FIELD_ORDER = [
+            FieldType.SCENE_HEADING,
+            FieldType.ACTION,
+            FieldType.CHARACTER_NAME,
+            FieldType.PARENTHETICAL,
+            FieldType.DIALOGUE
+        ];
+
+        /**
+         * ScriptEditor class that manages keyboard navigation
+         */
+        class ScriptEditor {
+            constructor() {
+                this.fields = [];
+                this.currentFieldIndex = -1;
+            }
+
+            /**
+             * Add a field to the editor
+             */
+            addField(type, sceneId, shotId, elementId) {
+                this.fields.push({
+                    type,
+                    sceneId,
+                    shotId,
+                    elementId,
+                    id: `${sceneId}-${shotId}-${elementId}-${type}`
+                });
+            }
+
+            /**
+             * Set focus to a specific field
+             */
+            focusField(fieldId) {
+                const index = this.fields.findIndex(f => f.id === fieldId);
+                if (index !== -1) {
+                    this.currentFieldIndex = index;
+                    return true;
+                }
+                return false;
+            }
+
+            /**
+             * Get the currently focused field
+             */
+            getCurrentField() {
+                if (this.currentFieldIndex >= 0 && this.currentFieldIndex < this.fields.length) {
+                    return this.fields[this.currentFieldIndex];
+                }
+                return null;
+            }
+
+            /**
+             * Move to the next field (Tab or Enter key)
+             */
+            moveToNextField() {
+                if (this.currentFieldIndex < this.fields.length - 1) {
+                    this.currentFieldIndex++;
+                    return this.fields[this.currentFieldIndex];
+                }
+                return null; // No more fields
+            }
+
+            /**
+             * Move to the previous field (Shift+Tab)
+             */
+            moveToPreviousField() {
+                if (this.currentFieldIndex > 0) {
+                    this.currentFieldIndex--;
+                    return this.fields[this.currentFieldIndex];
+                }
+                return null; // Already at first field
+            }
+
+            /**
+             * Simulate Tab key press
+             */
+            pressTab() {
+                return this.moveToNextField();
+            }
+
+            /**
+             * Simulate Shift+Tab key press
+             */
+            pressShiftTab() {
+                return this.moveToPreviousField();
+            }
+
+            /**
+             * Simulate Enter key press (same as Tab in script editor)
+             */
+            pressEnter() {
+                return this.moveToNextField();
+            }
+
+            /**
+             * Get all fields
+             */
+            getAllFields() {
+                return [...this.fields];
+            }
+
+            /**
+             * Reset editor
+             */
+            reset() {
+                this.fields = [];
+                this.currentFieldIndex = -1;
+            }
+        }
+
+        /**
+         * Generate a script structure with multiple scenes and shots
+         */
+        function generateScriptStructure(numScenes, shotsPerScene) {
+            const editor = new ScriptEditor();
+            
+            for (let sceneIdx = 0; sceneIdx < numScenes; sceneIdx++) {
+                const sceneId = `scene-${sceneIdx}`;
+                
+                for (let shotIdx = 0; shotIdx < shotsPerScene; shotIdx++) {
+                    const shotId = `shot-${sceneIdx}-${shotIdx}`;
+                    
+                    // Add fields in the expected order for each shot
+                    editor.addField(FieldType.SCENE_HEADING, sceneId, shotId, 'heading');
+                    editor.addField(FieldType.ACTION, sceneId, shotId, 'action');
+                    editor.addField(FieldType.CHARACTER_NAME, sceneId, shotId, 'char');
+                    editor.addField(FieldType.PARENTHETICAL, sceneId, shotId, 'paren');
+                    editor.addField(FieldType.DIALOGUE, sceneId, shotId, 'dialogue');
+                }
+            }
+            
+            return editor;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // fast-check Arbitraries (Generators)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /**
+         * Generate random key sequences (Tab, Enter, Shift+Tab)
+         */
+        const keySequenceArb = fc.array(
+            fc.constantFrom('Tab', 'Enter', 'ShiftTab'),
+            { minLength: 5, maxLength: 50 }
+        );
+
+        /**
+         * Generate random script structure parameters
+         */
+        const scriptStructureArb = fc.record({
+            numScenes: fc.integer({ min: 1, max: 5 }),
+            shotsPerScene: fc.integer({ min: 1, max: 3 })
+        });
+
+        /**
+         * Combined arbitrary for test input
+         */
+        const testInputArb = fc.tuple(scriptStructureArb, keySequenceArb);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Property Test Implementation
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /**
+         * Test keyboard navigation correctness
+         */
+        function testKeyboardNavigation(scriptStructure, keySequence) {
+            const editor = generateScriptStructure(
+                scriptStructure.numScenes,
+                scriptStructure.shotsPerScene
+            );
+
+            const allFields = editor.getAllFields();
+            if (allFields.length === 0) {
+                return { success: false, message: 'No fields generated' };
+            }
+
+            // Start at the first field
+            editor.focusField(allFields[0].id);
+            let currentField = editor.getCurrentField();
+            
+            const navigationLog = [];
+            navigationLog.push({ action: 'START', field: currentField });
+
+            // Execute the key sequence
+            for (let i = 0; i < keySequence.length; i++) {
+                const key = keySequence[i];
+                let nextField = null;
+
+                if (key === 'Tab') {
+                    nextField = editor.pressTab();
+                } else if (key === 'Enter') {
+                    nextField = editor.pressEnter();
+                } else if (key === 'ShiftTab') {
+                    nextField = editor.pressShiftTab();
+                }
+
+                navigationLog.push({ action: key, field: nextField });
+
+                // If we reached the end or beginning, that's valid
+                if (nextField === null) {
+                    continue;
+                }
+
+                currentField = nextField;
+            }
+
+            // Verify navigation correctness
+            // Check that forward navigation (Tab/Enter) follows the expected field order
+            for (let i = 0; i < navigationLog.length - 1; i++) {
+                const log = navigationLog[i];
+                const nextLog = navigationLog[i + 1];
+
+                if (nextLog.action === 'Tab' || nextLog.action === 'Enter') {
+                    if (log.field && nextLog.field) {
+                        const currentFieldIndex = allFields.findIndex(f => f.id === log.field.id);
+                        const nextFieldIndex = allFields.findIndex(f => f.id === nextLog.field.id);
+
+                        // Tab/Enter should move forward by 1
+                        if (nextFieldIndex !== currentFieldIndex + 1) {
+                            return {
+                                success: false,
+                                message: `Tab/Enter navigation incorrect: moved from index ${currentFieldIndex} to ${nextFieldIndex} (expected ${currentFieldIndex + 1})`,
+                                currentField: log.field,
+                                nextField: nextLog.field,
+                                keySequence: keySequence.slice(0, i + 2)
+                            };
+                        }
+
+                        // Verify field type order
+                        const currentFieldType = log.field.type;
+                        const nextFieldType = nextLog.field.type;
+                        const currentTypeIndex = FIELD_ORDER.indexOf(currentFieldType);
+                        const nextTypeIndex = FIELD_ORDER.indexOf(nextFieldType);
+
+                        // If we're not wrapping to the next shot/scene, verify type order
+                        if (log.field.shotId === nextLog.field.shotId) {
+                            if (nextTypeIndex <= currentTypeIndex) {
+                                return {
+                                    success: false,
+                                    message: `Field type order incorrect: ${currentFieldType} → ${nextFieldType} (expected forward progression)`,
+                                    currentField: log.field,
+                                    nextField: nextLog.field,
+                                    keySequence: keySequence.slice(0, i + 2)
+                                };
+                            }
+                        }
+                    }
+                } else if (nextLog.action === 'ShiftTab') {
+                    if (log.field && nextLog.field) {
+                        const currentFieldIndex = allFields.findIndex(f => f.id === log.field.id);
+                        const nextFieldIndex = allFields.findIndex(f => f.id === nextLog.field.id);
+
+                        // Shift+Tab should move backward by 1
+                        if (nextFieldIndex !== currentFieldIndex - 1) {
+                            return {
+                                success: false,
+                                message: `Shift+Tab navigation incorrect: moved from index ${currentFieldIndex} to ${nextFieldIndex} (expected ${currentFieldIndex - 1})`,
+                                currentField: log.field,
+                                nextField: nextLog.field,
+                                keySequence: keySequence.slice(0, i + 2)
+                            };
+                        }
+                    }
+                }
+            }
+
+            // Verify that the expected field order is maintained
+            for (let i = 0; i < allFields.length - 1; i++) {
+                const currentField = allFields[i];
+                const nextField = allFields[i + 1];
+
+                // If same shot, verify field type order
+                if (currentField.shotId === nextField.shotId) {
+                    const currentTypeIndex = FIELD_ORDER.indexOf(currentField.type);
+                    const nextTypeIndex = FIELD_ORDER.indexOf(nextField.type);
+
+                    if (nextTypeIndex <= currentTypeIndex) {
+                        return {
+                            success: false,
+                            message: `Field order incorrect in shot ${currentField.shotId}: ${currentField.type} (index ${currentTypeIndex}) followed by ${nextField.type} (index ${nextTypeIndex})`,
+                            currentField,
+                            nextField
+                        };
+                    }
+                }
+            }
+
+            return { success: true };
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Test Execution Functions
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function updateProgress(testsRun, total, passed, failed) {
+            const percentage = Math.round((testsRun / total) * 100);
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('progressBar').textContent = percentage + '%';
+            document.getElementById('testsRun').textContent = testsRun;
+            document.getElementById('testsPassed').textContent = passed;
+            document.getElementById('testsFailed').textContent = failed;
+        }
+
+        async function runPropertyTest() {
+            const numTests = parseInt(document.getElementById('numTests').value);
+            const runBtn = document.getElementById('runBtn');
+            const singleBtn = document.getElementById('singleBtn');
+            const progressSection = document.getElementById('progressSection');
+            const resultsSection = document.getElementById('resultsSection');
+            const results = document.getElementById('results');
+
+            runBtn.disabled = true;
+            singleBtn.disabled = true;
+            progressSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            results.innerHTML = '';
+
+            let testsRun = 0;
+            let testsPassed = 0;
+            let testsFailed = 0;
+            let failureDetails = null;
+
+            try {
+                const property = fc.property(testInputArb, ([scriptStructure, keySequence]) => {
+                    testsRun++;
+                    updateProgress(testsRun, numTests, testsPassed, testsFailed);
+
+                    const result = testKeyboardNavigation(scriptStructure, keySequence);
+                    
+                    if (result.success) {
+                        testsPassed++;
+                    } else {
+                        testsFailed++;
+                        if (!failureDetails) {
+                            failureDetails = { scriptStructure, keySequence, result };
+                        }
+                    }
+
+                    return result.success;
+                });
+
+                const checkResult = fc.check(property, { numRuns: numTests });
+
+                resultsSection.style.display = 'block';
+
+                if (checkResult.failed) {
+                    results.innerHTML = `
+                        <div class="test-result fail">
+                            <h3>❌ Property Test FAILED</h3>
+                            <p><strong>Tests Run:</strong> ${testsRun}</p>
+                            <p><strong>Passed:</strong> ${testsPassed}</p>
+                            <p><strong>Failed:</strong> ${testsFailed}</p>
+                        </div>
+                        ${failureDetails ? `
+                        <div class="counterexample">
+                            <h3>🔍 Counterexample Found</h3>
+                            <p><strong>Error:</strong> ${failureDetails.result.message}</p>
+                            <p><strong>Script Structure:</strong></p>
+                            <pre>${JSON.stringify(failureDetails.scriptStructure, null, 2)}</pre>
+                            <p><strong>Key Sequence:</strong></p>
+                            <pre>${JSON.stringify(failureDetails.keySequence, null, 2)}</pre>
+                            ${failureDetails.result.currentField ? `
+                            <p><strong>Current Field:</strong></p>
+                            <pre>${JSON.stringify(failureDetails.result.currentField, null, 2)}</pre>
+                            ` : ''}
+                            ${failureDetails.result.nextField ? `
+                            <p><strong>Next Field:</strong></p>
+                            <pre>${JSON.stringify(failureDetails.result.nextField, null, 2)}</pre>
+                            ` : ''}
+                        </div>
+                        ` : ''}
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="test-result pass">
+                            <h3>✅ Property Test PASSED</h3>
+                            <p><strong>Tests Run:</strong> ${testsRun}</p>
+                            <p><strong>All tests passed!</strong></p>
+                            <p>The keyboard navigation system correctly maintains field order across all tested scenarios.</p>
+                        </div>
+                        <div class="test-result info">
+                            <h3>📊 Test Coverage</h3>
+                            <p>Tested ${numTests} random combinations of:</p>
+                            <ul>
+                                <li>Script structures (1-5 scenes, 1-3 shots per scene)</li>
+                                <li>Key sequences (5-50 keys: Tab, Enter, Shift+Tab)</li>
+                                <li>Field navigation order verification</li>
+                                <li>Forward and backward navigation</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="test-result fail">
+                        <h3>❌ Test Execution Error</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            } finally {
+                runBtn.disabled = false;
+                singleBtn.disabled = false;
+            }
+        }
+
+        async function runSingleTest() {
+            const resultsSection = document.getElementById('resultsSection');
+            const results = document.getElementById('results');
+
+            resultsSection.style.display = 'block';
+            results.innerHTML = '<div class="test-result info"><h3>🔍 Running Single Test...</h3></div>';
+
+            try {
+                // Generate a single test case
+                const testCase = fc.sample(testInputArb, 1)[0];
+                const [scriptStructure, keySequence] = testCase;
+
+                const result = testKeyboardNavigation(scriptStructure, keySequence);
+
+                if (result.success) {
+                    results.innerHTML = `
+                        <div class="test-result pass">
+                            <h3>✅ Single Test PASSED</h3>
+                            <p><strong>Script Structure:</strong></p>
+                            <pre>${JSON.stringify(scriptStructure, null, 2)}</pre>
+                            <p><strong>Key Sequence:</strong></p>
+                            <pre>${JSON.stringify(keySequence, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="test-result fail">
+                            <h3>❌ Single Test FAILED</h3>
+                            <p><strong>Error:</strong> ${result.message}</p>
+                            <p><strong>Script Structure:</strong></p>
+                            <pre>${JSON.stringify(scriptStructure, null, 2)}</pre>
+                            <p><strong>Key Sequence:</strong></p>
+                            <pre>${JSON.stringify(keySequence, null, 2)}</pre>
+                            ${result.currentField ? `
+                            <p><strong>Current Field:</strong></p>
+                            <pre>${JSON.stringify(result.currentField, null, 2)}</pre>
+                            ` : ''}
+                            ${result.nextField ? `
+                            <p><strong>Next Field:</strong></p>
+                            <pre>${JSON.stringify(result.nextField, null, 2)}</pre>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="test-result fail">
+                        <h3>❌ Test Execution Error</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

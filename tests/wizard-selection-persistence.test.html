@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Test: Wizard Selection Persistence</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .test-header p {
+            margin: 5px 0;
+            opacity: 0.9;
+        }
+        .test-section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            font-size: 13px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .counterexample {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .counterexample h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1>🧪 Property Test: Wizard Selection Persistence</h1>
+        <p><strong>Property 2:</strong> For any sequence of wizard steps, when the user navigates backward and then forward again, all previously selected values SHALL be restored to their original state.</p>
+        <p><strong>Validates:</strong> Requirements 1.5, 2.5, 3.5, 4.5, 5.7, 6.5</p>
+        <p><strong>Testing Framework:</strong> fast-check (Property-Based Testing)</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <div>
+            <label>Number of test cases: <input type="number" id="numTests" value="100" min="10" max="1000" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></label>
+        </div>
+        <button onclick="runPropertyTest()" id="runBtn">▶ Run Property Test</button>
+        <button onclick="runSingleTest()" id="singleBtn">🔍 Run Single Test (Debug)</button>
+    </div>
+
+    <div class="test-section" id="progressSection" style="display: none;">
+        <h2>Test Progress</h2>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar" style="width: 0%;">0%</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Tests Run</div>
+                <div class="stat-value" id="testsRun">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Passed</div>
+                <div class="stat-value" id="testsPassed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value" id="testsFailed">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section" id="resultsSection" style="display: none;">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <!-- Load fast-check from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/fast-check@3.15.0/lib/bundle.js"></script>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // Story Blueprint Engine - Minimal Implementation for Testing
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const StoryBlueprintEngine = {
+            createBlueprint: (data = {}) => {
+                const id = `blueprint-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                return {
+                    id,
+                    storyType: data.storyType || '',
+                    duration: data.duration || '',
+                    style: data.style || '',
+                    narrativeStructure: data.narrativeStructure || '',
+                    dynamicParameters: data.dynamicParameters || {},
+                    storyIntent: data.storyIntent || '',
+                    characters: data.characters || [],
+                    relationships: data.relationships || [],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            },
+
+            updateBlueprint: (blueprint, updates) => {
+                return {
+                    ...blueprint,
+                    ...updates,
+                    updatedAt: new Date().toISOString()
+                };
+            },
+
+            getDynamicParameters: (storyType, duration, style, narrativeStructure) => {
+                if (storyType === 'Documentary') {
+                    return {
+                        subjectMatter: { type: 'select', options: ['Nature', 'History', 'Biography', 'Science'] },
+                        interviewFormat: { type: 'select', options: ['Talking Heads', 'Voiceover', 'Mixed'] },
+                        archivalFootage: { type: 'boolean' },
+                        narratorPresence: { type: 'select', options: ['None', 'Omniscient', 'Character'] }
+                    };
+                }
+                if (storyType === 'Commercial') {
+                    return {
+                        productCategory: { type: 'text', placeholder: 'e.g., Electronics, Food, Fashion' },
+                        targetAudience: { type: 'select', options: ['18-24', '25-34', '35-44', '45+'] },
+                        callToActionType: { type: 'select', options: ['Buy Now', 'Learn More', 'Sign Up', 'Visit Store'] },
+                        brandTone: { type: 'select', options: ['Professional', 'Playful', 'Inspirational', 'Urgent'] }
+                    };
+                }
+                if (storyType === 'Cinematic Film') {
+                    return {
+                        genre: { type: 'select', options: ['Action', 'Drama', 'Comedy', 'Thriller', 'Sci-Fi'] },
+                        protagonistArchetype: { type: 'select', options: ['Hero', 'Anti-Hero', 'Everyman', 'Mentor'] },
+                        antagonistType: { type: 'select', options: ['Villain', 'Nature', 'Society', 'Self'] },
+                        actStructure: { type: 'select', options: ['Three-Act', 'Five-Act', 'Sequence-Based'] }
+                    };
+                }
+                return {};
+            }
+        };
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Configuration Wizard State Machine (Simplified for Testing)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        class WizardStateMachine {
+            constructor() {
+                this.currentStep = 1;
+                this.blueprint = StoryBlueprintEngine.createBlueprint();
+                this.history = {}; // Changed from array to object for step-based indexing
+            }
+
+            // Navigate to next step
+            next() {
+                if (this.currentStep < 7) {
+                    // Save current state AFTER updates for this step
+                    this.history[this.currentStep] = JSON.parse(JSON.stringify(this.blueprint));
+                    this.currentStep++;
+                    // Restore saved state for the next step if it exists
+                    if (this.history[this.currentStep]) {
+                        this.blueprint = JSON.parse(JSON.stringify(this.history[this.currentStep]));
+                    }
+                }
+            }
+
+            // Navigate to previous step
+            back() {
+                if (this.currentStep > 1) {
+                    // Save current state before going back
+                    this.history[this.currentStep] = JSON.parse(JSON.stringify(this.blueprint));
+                    this.currentStep--;
+                    // Restore blueprint from history
+                    if (this.history[this.currentStep]) {
+                        this.blueprint = JSON.parse(JSON.stringify(this.history[this.currentStep]));
+                    }
+                }
+            }
+
+            // Update blueprint field
+            updateField(field, value) {
+                this.blueprint = StoryBlueprintEngine.updateBlueprint(this.blueprint, { [field]: value });
+            }
+
+            // Get current blueprint
+            getBlueprint() {
+                return JSON.parse(JSON.stringify(this.blueprint));
+            }
+
+            // Get current step
+            getCurrentStep() {
+                return this.currentStep;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // fast-check Arbitraries (Generators)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const storyTypeArb = fc.constantFrom('Social Media', 'Short Film', 'Cinematic Film', 'Documentary', 'Commercial', 'Experimental');
+        const durationArb = fc.constantFrom('2 min', '5 min', '10 min', '15 min', '30 min', '60 min');
+        const styleArb = fc.constantFrom('cinematic', 'documentary', 'comedy', 'drama', '3D anime', '2D animated');
+        const narrativeStructureArb = fc.constantFrom('protagonist journey', 'antagonist conflict', 'ensemble', 'real event storytelling');
+        const storyIntentArb = fc.string({ minLength: 10, maxLength: 200 });
+
+        // Dynamic parameters generator based on story type
+        const dynamicParametersArb = (storyType) => {
+            if (storyType === 'Documentary') {
+                return fc.record({
+                    subjectMatter: fc.constantFrom('Nature', 'History', 'Biography', 'Science'),
+                    interviewFormat: fc.constantFrom('Talking Heads', 'Voiceover', 'Mixed'),
+                    archivalFootage: fc.boolean(),
+                    narratorPresence: fc.constantFrom('None', 'Omniscient', 'Character')
+                });
+            }
+            if (storyType === 'Commercial') {
+                return fc.record({
+                    productCategory: fc.string({ minLength: 5, maxLength: 20 }),
+                    targetAudience: fc.constantFrom('18-24', '25-34', '35-44', '45+'),
+                    callToActionType: fc.constantFrom('Buy Now', 'Learn More', 'Sign Up', 'Visit Store'),
+                    brandTone: fc.constantFrom('Professional', 'Playful', 'Inspirational', 'Urgent')
+                });
+            }
+            if (storyType === 'Cinematic Film') {
+                return fc.record({
+                    genre: fc.constantFrom('Action', 'Drama', 'Comedy', 'Thriller', 'Sci-Fi'),
+                    protagonistArchetype: fc.constantFrom('Hero', 'Anti-Hero', 'Everyman', 'Mentor'),
+                    antagonistType: fc.constantFrom('Villain', 'Nature', 'Society', 'Self'),
+                    actStructure: fc.constantFrom('Three-Act', 'Five-Act', 'Sequence-Based')
+                });
+            }
+            return fc.constant({});
+        };
+
+        // Complete wizard input generator
+        const wizardInputArb = fc.tuple(
+            storyTypeArb,
+            durationArb,
+            styleArb,
+            narrativeStructureArb,
+            storyIntentArb
+        ).chain(([storyType, duration, style, narrativeStructure, storyIntent]) => {
+            return dynamicParametersArb(storyType).map(dynamicParameters => ({
+                storyType,
+                duration,
+                style,
+                narrativeStructure,
+                dynamicParameters,
+                storyIntent
+            }));
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Property Test Implementation
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function testWizardPersistence(wizardInput) {
+            const wizard = new WizardStateMachine();
+
+            // Step 1: Story Type
+            wizard.updateField('storyType', wizardInput.storyType);
+            const step1Blueprint = wizard.getBlueprint();
+            wizard.next();
+
+            // Step 2: Duration
+            wizard.updateField('duration', wizardInput.duration);
+            const step2Blueprint = wizard.getBlueprint();
+            wizard.next();
+
+            // Step 3: Style
+            wizard.updateField('style', wizardInput.style);
+            const step3Blueprint = wizard.getBlueprint();
+            wizard.next();
+
+            // Step 4: Narrative Structure
+            wizard.updateField('narrativeStructure', wizardInput.narrativeStructure);
+            const step4Blueprint = wizard.getBlueprint();
+            wizard.next();
+
+            // Step 5: Dynamic Parameters
+            wizard.updateField('dynamicParameters', wizardInput.dynamicParameters);
+            const step5Blueprint = wizard.getBlueprint();
+            wizard.next();
+
+            // Step 6: Story Intent
+            wizard.updateField('storyIntent', wizardInput.storyIntent);
+            const step6Blueprint = wizard.getBlueprint();
+
+            // Now navigate backward through all steps and verify persistence
+            // When we go back, we should see the state as it was at that step
+            wizard.back(); // Back to step 5
+            const restoredStep5 = wizard.getBlueprint();
+            // At step 5, we should have all fields up to and including dynamicParameters
+            if (restoredStep5.storyType !== step5Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved at step 5', expected: step5Blueprint.storyType, actual: restoredStep5.storyType };
+            }
+            if (restoredStep5.duration !== step5Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved at step 5', expected: step5Blueprint.duration, actual: restoredStep5.duration };
+            }
+            if (restoredStep5.style !== step5Blueprint.style) {
+                return { success: false, message: 'Style not preserved at step 5', expected: step5Blueprint.style, actual: restoredStep5.style };
+            }
+            if (restoredStep5.narrativeStructure !== step5Blueprint.narrativeStructure) {
+                return { success: false, message: 'Narrative Structure not preserved at step 5', expected: step5Blueprint.narrativeStructure, actual: restoredStep5.narrativeStructure };
+            }
+            if (JSON.stringify(restoredStep5.dynamicParameters) !== JSON.stringify(step5Blueprint.dynamicParameters)) {
+                return { success: false, message: 'Dynamic Parameters not preserved at step 5', expected: step5Blueprint.dynamicParameters, actual: restoredStep5.dynamicParameters };
+            }
+
+            wizard.back(); // Back to step 4
+            const restoredStep4 = wizard.getBlueprint();
+            if (restoredStep4.storyType !== step4Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved at step 4', expected: step4Blueprint.storyType, actual: restoredStep4.storyType };
+            }
+            if (restoredStep4.duration !== step4Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved at step 4', expected: step4Blueprint.duration, actual: restoredStep4.duration };
+            }
+            if (restoredStep4.style !== step4Blueprint.style) {
+                return { success: false, message: 'Style not preserved at step 4', expected: step4Blueprint.style, actual: restoredStep4.style };
+            }
+            if (restoredStep4.narrativeStructure !== step4Blueprint.narrativeStructure) {
+                return { success: false, message: 'Narrative Structure not preserved at step 4', expected: step4Blueprint.narrativeStructure, actual: restoredStep4.narrativeStructure };
+            }
+
+            wizard.back(); // Back to step 3
+            const restoredStep3 = wizard.getBlueprint();
+            if (restoredStep3.storyType !== step3Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved at step 3', expected: step3Blueprint.storyType, actual: restoredStep3.storyType };
+            }
+            if (restoredStep3.duration !== step3Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved at step 3', expected: step3Blueprint.duration, actual: restoredStep3.duration };
+            }
+            if (restoredStep3.style !== step3Blueprint.style) {
+                return { success: false, message: 'Style not preserved at step 3', expected: step3Blueprint.style, actual: restoredStep3.style };
+            }
+
+            wizard.back(); // Back to step 2
+            const restoredStep2 = wizard.getBlueprint();
+            if (restoredStep2.storyType !== step2Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved at step 2', expected: step2Blueprint.storyType, actual: restoredStep2.storyType };
+            }
+            if (restoredStep2.duration !== step2Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved at step 2', expected: step2Blueprint.duration, actual: restoredStep2.duration };
+            }
+
+            wizard.back(); // Back to step 1
+            const restoredStep1 = wizard.getBlueprint();
+            if (restoredStep1.storyType !== step1Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved at step 1', expected: step1Blueprint.storyType, actual: restoredStep1.storyType };
+            }
+
+            // Navigate forward again and verify all values are still preserved
+            wizard.next(); // Forward to step 2
+            const reforwardStep2 = wizard.getBlueprint();
+            if (reforwardStep2.storyType !== step2Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved when navigating forward to step 2', expected: step2Blueprint.storyType, actual: reforwardStep2.storyType };
+            }
+            if (reforwardStep2.duration !== step2Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved when navigating forward to step 2', expected: step2Blueprint.duration, actual: reforwardStep2.duration };
+            }
+
+            wizard.next(); // Forward to step 3
+            const reforwardStep3 = wizard.getBlueprint();
+            if (reforwardStep3.storyType !== step3Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved when navigating forward to step 3', expected: step3Blueprint.storyType, actual: reforwardStep3.storyType };
+            }
+            if (reforwardStep3.duration !== step3Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved when navigating forward to step 3', expected: step3Blueprint.duration, actual: reforwardStep3.duration };
+            }
+            if (reforwardStep3.style !== step3Blueprint.style) {
+                return { success: false, message: 'Style not preserved when navigating forward to step 3', expected: step3Blueprint.style, actual: reforwardStep3.style };
+            }
+
+            wizard.next(); // Forward to step 4
+            const reforwardStep4 = wizard.getBlueprint();
+            if (reforwardStep4.storyType !== step4Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved when navigating forward to step 4', expected: step4Blueprint.storyType, actual: reforwardStep4.storyType };
+            }
+            if (reforwardStep4.duration !== step4Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved when navigating forward to step 4', expected: step4Blueprint.duration, actual: reforwardStep4.duration };
+            }
+            if (reforwardStep4.style !== step4Blueprint.style) {
+                return { success: false, message: 'Style not preserved when navigating forward to step 4', expected: step4Blueprint.style, actual: reforwardStep4.style };
+            }
+            if (reforwardStep4.narrativeStructure !== step4Blueprint.narrativeStructure) {
+                return { success: false, message: 'Narrative Structure not preserved when navigating forward to step 4', expected: step4Blueprint.narrativeStructure, actual: reforwardStep4.narrativeStructure };
+            }
+
+            wizard.next(); // Forward to step 5
+            const reforwardStep5 = wizard.getBlueprint();
+            if (reforwardStep5.storyType !== step5Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved when navigating forward to step 5', expected: step5Blueprint.storyType, actual: reforwardStep5.storyType };
+            }
+            if (reforwardStep5.duration !== step5Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved when navigating forward to step 5', expected: step5Blueprint.duration, actual: reforwardStep5.duration };
+            }
+            if (reforwardStep5.style !== step5Blueprint.style) {
+                return { success: false, message: 'Style not preserved when navigating forward to step 5', expected: step5Blueprint.style, actual: reforwardStep5.style };
+            }
+            if (reforwardStep5.narrativeStructure !== step5Blueprint.narrativeStructure) {
+                return { success: false, message: 'Narrative Structure not preserved when navigating forward to step 5', expected: step5Blueprint.narrativeStructure, actual: reforwardStep5.narrativeStructure };
+            }
+            if (JSON.stringify(reforwardStep5.dynamicParameters) !== JSON.stringify(step5Blueprint.dynamicParameters)) {
+                return { success: false, message: 'Dynamic Parameters not preserved when navigating forward to step 5', expected: step5Blueprint.dynamicParameters, actual: reforwardStep5.dynamicParameters };
+            }
+
+            wizard.next(); // Forward to step 6
+            const reforwardStep6 = wizard.getBlueprint();
+            if (reforwardStep6.storyType !== step6Blueprint.storyType) {
+                return { success: false, message: 'Story Type not preserved when navigating forward to step 6', expected: step6Blueprint.storyType, actual: reforwardStep6.storyType };
+            }
+            if (reforwardStep6.duration !== step6Blueprint.duration) {
+                return { success: false, message: 'Duration not preserved when navigating forward to step 6', expected: step6Blueprint.duration, actual: reforwardStep6.duration };
+            }
+            if (reforwardStep6.style !== step6Blueprint.style) {
+                return { success: false, message: 'Style not preserved when navigating forward to step 6', expected: step6Blueprint.style, actual: reforwardStep6.style };
+            }
+            if (reforwardStep6.narrativeStructure !== step6Blueprint.narrativeStructure) {
+                return { success: false, message: 'Narrative Structure not preserved when navigating forward to step 6', expected: step6Blueprint.narrativeStructure, actual: reforwardStep6.narrativeStructure };
+            }
+            if (JSON.stringify(reforwardStep6.dynamicParameters) !== JSON.stringify(step6Blueprint.dynamicParameters)) {
+                return { success: false, message: 'Dynamic Parameters not preserved when navigating forward to step 6', expected: step6Blueprint.dynamicParameters, actual: reforwardStep6.dynamicParameters };
+            }
+            if (reforwardStep6.storyIntent !== step6Blueprint.storyIntent) {
+                return { success: false, message: 'Story Intent not preserved when navigating forward to step 6', expected: step6Blueprint.storyIntent, actual: reforwardStep6.storyIntent };
+            }
+
+            return { success: true };
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Test Execution Functions
+        // ═══════════════════════════════════════════════════════════════════════
+
+        async function runPropertyTest() {
+            const numTests = parseInt(document.getElementById('numTests').value);
+            const runBtn = document.getElementById('runBtn');
+            const singleBtn = document.getElementById('singleBtn');
+            const progressSection = document.getElementById('progressSection');
+            const resultsSection = document.getElementById('resultsSection');
+            const results = document.getElementById('results');
+
+            runBtn.disabled = true;
+            singleBtn.disabled = true;
+            progressSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            results.innerHTML = '';
+
+            let testsRun = 0;
+            let testsPassed = 0;
+            let testsFailed = 0;
+            let failureDetails = null;
+
+            try {
+                const property = fc.property(wizardInputArb, (wizardInput) => {
+                    testsRun++;
+                    updateProgress(testsRun, numTests, testsPassed, testsFailed);
+
+                    const result = testWizardPersistence(wizardInput);
+                    
+                    if (result.success) {
+                        testsPassed++;
+                    } else {
+                        testsFailed++;
+                        if (!failureDetails) {
+                            failureDetails = { wizardInput, result };
+                        }
+                    }
+
+                    return result.success;
+                });
+
+                const checkResult = fc.check(property, { numRuns: numTests });
+
+                resultsSection.style.display = 'block';
+
+                if (checkResult.failed) {
+                    results.innerHTML = `
+                        <div class="test-result fail">
+                            <h3>❌ Property Test FAILED</h3>
+                            <p><strong>Tests Run:</strong> ${testsRun}</p>
+                            <p><strong>Passed:</strong> ${testsPassed}</p>
+                            <p><strong>Failed:</strong> ${testsFailed}</p>
+                        </div>
+                        ${failureDetails ? `
+                        <div class="counterexample">
+                            <h3>🔍 Counterexample Found</h3>
+                            <p><strong>Error:</strong> ${failureDetails.result.message}</p>
+                            <p><strong>Expected:</strong> <code>${JSON.stringify(failureDetails.result.expected)}</code></p>
+                            <p><strong>Actual:</strong> <code>${JSON.stringify(failureDetails.result.actual)}</code></p>
+                            <details>
+                                <summary>Full Wizard Input</summary>
+                                <pre>${JSON.stringify(failureDetails.wizardInput, null, 2)}</pre>
+                            </details>
+                        </div>
+                        ` : ''}
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="test-result pass">
+                            <h3>✅ Property Test PASSED</h3>
+                            <p><strong>Tests Run:</strong> ${testsRun}</p>
+                            <p><strong>All tests passed!</strong> The wizard correctly persists selections across forward and backward navigation.</p>
+                            <p>The property holds for all ${numTests} randomly generated test cases.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="test-result fail">
+                        <h3>❌ Test Execution Error</h3>
+                        <p>${error.message}</p>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            } finally {
+                runBtn.disabled = false;
+                singleBtn.disabled = false;
+            }
+        }
+
+        async function runSingleTest() {
+            const resultsSection = document.getElementById('resultsSection');
+            const results = document.getElementById('results');
+
+            resultsSection.style.display = 'block';
+            results.innerHTML = '<div class="test-result info"><h3>🔍 Running Single Test...</h3></div>';
+
+            try {
+                const wizardInput = fc.sample(wizardInputArb, 1)[0];
+                const result = testWizardPersistence(wizardInput);
+
+                if (result.success) {
+                    results.innerHTML = `
+                        <div class="test-result pass">
+                            <h3>✅ Single Test PASSED</h3>
+                            <p>The wizard correctly persisted all selections.</p>
+                            <details>
+                                <summary>Test Input</summary>
+                                <pre>${JSON.stringify(wizardInput, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="test-result fail">
+                            <h3>❌ Single Test FAILED</h3>
+                            <p><strong>Error:</strong> ${result.message}</p>
+                            <p><strong>Expected:</strong> <code>${JSON.stringify(result.expected)}</code></p>
+                            <p><strong>Actual:</strong> <code>${JSON.stringify(result.actual)}</code></p>
+                            <details>
+                                <summary>Test Input</summary>
+                                <pre>${JSON.stringify(wizardInput, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="test-result fail">
+                        <h3>❌ Test Execution Error</h3>
+                        <p>${error.message}</p>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        function updateProgress(testsRun, total, passed, failed) {
+            const percentage = Math.round((testsRun / total) * 100);
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('progressBar').textContent = percentage + '%';
+            document.getElementById('testsRun').textContent = testsRun;
+            document.getElementById('testsPassed').textContent = passed;
+            document.getElementById('testsFailed').textContent = failed;
+        }
+    </script>
+</body>
+</html>

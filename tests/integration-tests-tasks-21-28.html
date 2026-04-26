@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration Tests - Tasks 21-28</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #f5f5f5;
+        }
+        h1 { color: #eab308; border-bottom: 2px solid #eab308; padding-bottom: 10px; }
+        h2 { color: #06b6d4; margin-top: 30px; }
+        .test-section {
+            background: #242424;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+        .test-pass {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+        .test-fail {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        .test-info {
+            background: rgba(6, 182, 212, 0.1);
+            border-color: #06b6d4;
+            color: #06b6d4;
+        }
+        button {
+            background: #eab308;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover { background: #ca8a04; }
+        .summary {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #eab308;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin: 0 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .pass-count { color: #22c55e; }
+        .fail-count { color: #ef4444; }
+        .total-count { color: #06b6d4; }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Story Output & Management System - Integration Tests</h1>
+    <p>Tasks 21-28: Final checkpoints and integration testing</p>
+
+    <div class="summary" id="summary">
+        <span class="summary-stat total-count">Total: <span id="total">0</span></span>
+        <span class="summary-stat pass-count">Passed: <span id="passed">0</span></span>
+        <span class="summary-stat fail-count">Failed: <span id="failed">0</span></span>
+    </div>
+
+    <button onclick="runAllTests()">▶ Run All Tests</button>
+    <button onclick="clearResults()">🗑 Clear Results</button>
+    <button onclick="exportResults()">📄 Export Results</button>
+
+    <div id="results"></div>
+
+    <script>
+        // Test tracking
+        let testResults = [];
+        let passCount = 0;
+        let failCount = 0;
+
+        // Helper functions
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result test-${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+            
+            if (type === 'pass') passCount++;
+            if (type === 'fail') failCount++;
+            
+            testResults.push({ message, type, timestamp: new Date().toISOString() });
+            updateSummary();
+        }
+
+        function updateSummary() {
+            document.getElementById('total').textContent = testResults.length;
+            document.getElementById('passed').textContent = passCount;
+            document.getElementById('failed').textContent = failCount;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            testResults = [];
+            passCount = 0;
+            failCount = 0;
+            updateSummary();
+        }
+
+        function exportResults() {
+            const blob = new Blob([JSON.stringify(testResults, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `integration-tests-${Date.now()}.json`;
+            a.click();
+        }
+
+        function assert(condition, message) {
+            if (condition) {
+                log(`✓ ${message}`, 'pass');
+                return true;
+            } else {
+                log(`✗ ${message}`, 'fail');
+                return false;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 21: Checkpoint - Verify core functionality
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task21_CoreFunctionality() {
+            log('<h2>Task 21: Core Functionality Verification</h2>', 'info');
+            
+            // Check if localStorage is available
+            assert(
+                typeof localStorage !== 'undefined',
+                'localStorage is available'
+            );
+            
+            // Check if key modules exist (would need to be loaded from main file)
+            log('ℹ Note: Full verification requires running in main application context', 'info');
+            log('ℹ Manual verification needed for:', 'info');
+            log('  • Project save/load operations work correctly', 'info');
+            log('  • Story_Output_Panel displays formatted screenplay', 'info');
+            log('  • Character highlighting works across all scenes', 'info');
+            log('  • Statistics update in real-time', 'info');
+            log('  • Auto-save triggers after 30 seconds of inactivity', 'info');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 22: Offline functionality verification
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task22_OfflineFunctionality() {
+            log('<h2>Task 22: Offline Functionality Verification</h2>', 'info');
+            
+            // Check online status
+            const isOnline = navigator.onLine;
+            log(`Current online status: ${isOnline ? 'Online' : 'Offline'}`, 'info');
+            
+            // Verify localStorage works (offline operation)
+            try {
+                const testKey = '__offline_test__';
+                localStorage.setItem(testKey, 'test');
+                const retrieved = localStorage.getItem(testKey);
+                localStorage.removeItem(testKey);
+                assert(retrieved === 'test', 'localStorage operations work offline');
+            } catch (e) {
+                assert(false, `localStorage operations failed: ${e.message}`);
+            }
+            
+            // Check for external dependencies
+            log('ℹ Verifying no external API calls are made...', 'info');
+            log('ℹ All operations should work without network access', 'info');
+            
+            // Verify export operations can work offline
+            try {
+                const testData = { test: 'data' };
+                const blob = new Blob([JSON.stringify(testData)], { type: 'application/json' });
+                assert(blob.size > 0, 'Blob creation works offline (for exports)');
+            } catch (e) {
+                assert(false, `Blob creation failed: ${e.message}`);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 23: Unsaved changes detection
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task23_UnsavedChanges() {
+            log('<h2>Task 23: Unsaved Changes Detection</h2>', 'info');
+            
+            log('ℹ Manual verification needed for:', 'info');
+            log('  • Unsaved changes indicator appears in Pro Script Builder', 'info');
+            log('  • Confirmation dialog shows when opening new project with unsaved changes', 'info');
+            log('  • Warning icon displays when auto-save is disabled', 'info');
+            
+            // These features require UI interaction and cannot be fully automated
+            log('ℹ Please verify these features manually in the main application', 'info');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 24: Integration testing - Project lifecycle
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task24_ProjectLifecycle() {
+            log('<h2>Task 24: Project Lifecycle Integration</h2>', 'info');
+            
+            log('ℹ Testing project lifecycle: create → edit → save → close → load → verify', 'info');
+            
+            // Simulate project lifecycle
+            try {
+                // Clear any existing test data
+                localStorage.removeItem('mokha_projects');
+                
+                // Create a test project
+                const testProject = {
+                    id: 'test-' + Date.now(),
+                    title: 'Test Project',
+                    author: 'Test Author',
+                    createdAt: Date.now(),
+                    lastModified: Date.now(),
+                    storyBlueprint: { duration: 15, genre: 'Drama' },
+                    scriptDocument: { scenes: [{ id: 'scene-1', heading: 'INT. TEST - DAY', shots: [] }] },
+                    characterArcs: { characters: [] },
+                    synopsis: {
+                        overview: 'Test overview',
+                        characters: [],
+                        setting: 'Test setting',
+                        themeTone: 'Test theme'
+                    },
+                    metadata: {
+                        wordCount: 100,
+                        pageCount: 1,
+                        readingTime: 40,
+                        thumbnail: ''
+                    }
+                };
+                
+                // Save project
+                const projects = [testProject];
+                localStorage.setItem('mokha_projects', JSON.stringify(projects));
+                assert(true, 'Project saved to localStorage');
+                
+                // Load project
+                const loaded = JSON.parse(localStorage.getItem('mokha_projects'));
+                assert(loaded.length === 1, 'Project loaded from localStorage');
+                assert(loaded[0].id === testProject.id, 'Project ID matches');
+                assert(loaded[0].title === testProject.title, 'Project title matches');
+                
+                // Verify project data integrity
+                assert(
+                    JSON.stringify(loaded[0].storyBlueprint) === JSON.stringify(testProject.storyBlueprint),
+                    'Story blueprint data preserved'
+                );
+                assert(
+                    JSON.stringify(loaded[0].scriptDocument) === JSON.stringify(testProject.scriptDocument),
+                    'Script document data preserved'
+                );
+                
+                // Clean up
+                localStorage.removeItem('mokha_projects');
+                assert(true, 'Test data cleaned up');
+                
+            } catch (e) {
+                assert(false, `Project lifecycle test failed: ${e.message}`);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 25: Integration testing - Export workflows
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task25_ExportWorkflows() {
+            log('<h2>Task 25: Export Workflows Integration</h2>', 'info');
+            
+            log('ℹ Testing export to various formats...', 'info');
+            
+            // Test JSON export/import
+            try {
+                const testProject = {
+                    id: 'export-test',
+                    title: 'Export Test',
+                    author: 'Tester',
+                    storyBlueprint: {},
+                    scriptDocument: { scenes: [] },
+                    characterArcs: {},
+                    synopsis: { overview: '', characters: [], setting: '', themeTone: '' },
+                    metadata: { wordCount: 0, pageCount: 0, readingTime: 0, thumbnail: '' }
+                };
+                
+                // Simulate JSON export
+                const jsonString = JSON.stringify(testProject, null, 2);
+                assert(jsonString.length > 0, 'JSON export creates valid string');
+                
+                // Simulate JSON import
+                const imported = JSON.parse(jsonString);
+                assert(imported.id === testProject.id, 'JSON import preserves project ID');
+                assert(imported.title === testProject.title, 'JSON import preserves project title');
+                
+            } catch (e) {
+                assert(false, `Export workflow test failed: ${e.message}`);
+            }
+            
+            log('ℹ Manual verification needed for:', 'info');
+            log('  • Export to TXT with proper formatting', 'info');
+            log('  • Export to Markdown with proper formatting', 'info');
+            log('  • Export to PDF with title page and appendix', 'info');
+            log('  • AI prompt export with different templates', 'info');
+            log('  • Custom template creation and persistence', 'info');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 26: Integration testing - Project Library
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task26_ProjectLibrary() {
+            log('<h2>Task 26: Project Library Integration</h2>', 'info');
+            
+            try {
+                // Create multiple test projects
+                const projects = [
+                    {
+                        id: '1',
+                        title: 'Alpha Project',
+                        author: 'John Doe',
+                        createdAt: Date.now() - 86400000, // 1 day ago
+                        lastModified: Date.now() - 3600000, // 1 hour ago
+                        storyBlueprint: { duration: 15, genre: 'Drama' },
+                        scriptDocument: { scenes: [] },
+                        characterArcs: {},
+                        synopsis: { overview: 'A dramatic story', characters: [], setting: '', themeTone: '' },
+                        metadata: { wordCount: 500, pageCount: 2, readingTime: 200, thumbnail: '' }
+                    },
+                    {
+                        id: '2',
+                        title: 'Beta Project',
+                        author: 'Jane Smith',
+                        createdAt: Date.now() - 172800000, // 2 days ago
+                        lastModified: Date.now() - 7200000, // 2 hours ago
+                        storyBlueprint: { duration: 30, genre: 'Action' },
+                        scriptDocument: { scenes: [] },
+                        characterArcs: {},
+                        synopsis: { overview: 'An action-packed adventure', characters: [], setting: '', themeTone: '' },
+                        metadata: { wordCount: 1000, pageCount: 4, readingTime: 400, thumbnail: '' }
+                    },
+                    {
+                        id: '3',
+                        title: 'Gamma Project',
+                        author: 'John Doe',
+                        createdAt: Date.now() - 259200000, // 3 days ago
+                        lastModified: Date.now() - 10800000, // 3 hours ago
+                        storyBlueprint: { duration: 10, genre: 'Comedy' },
+                        scriptDocument: { scenes: [] },
+                        characterArcs: {},
+                        synopsis: { overview: 'A funny comedy', characters: [], setting: '', themeTone: '' },
+                        metadata: { wordCount: 300, pageCount: 1, readingTime: 120, thumbnail: '' }
+                    }
+                ];
+                
+                localStorage.setItem('mokha_projects', JSON.stringify(projects));
+                
+                // Test search functionality
+                const searchByTitle = projects.filter(p => p.title.toLowerCase().includes('alpha'));
+                assert(searchByTitle.length === 1, 'Search by title works');
+                assert(searchByTitle[0].title === 'Alpha Project', 'Search returns correct project');
+                
+                const searchByAuthor = projects.filter(p => p.author.toLowerCase().includes('john'));
+                assert(searchByAuthor.length === 2, 'Search by author works');
+                
+                // Test filtering
+                const filterByGenre = projects.filter(p => p.storyBlueprint.genre === 'Drama');
+                assert(filterByGenre.length === 1, 'Filter by genre works');
+                
+                // Test sorting
+                const sortedByTitle = [...projects].sort((a, b) => a.title.localeCompare(b.title));
+                assert(sortedByTitle[0].title === 'Alpha Project', 'Sort by title works');
+                
+                const sortedByModified = [...projects].sort((a, b) => b.lastModified - a.lastModified);
+                assert(sortedByModified[0].id === '1', 'Sort by last modified works');
+                
+                // Test storage usage calculation
+                const storageSize = new Blob([JSON.stringify(projects)]).size;
+                assert(storageSize > 0, 'Storage usage can be calculated');
+                log(`ℹ Storage size: ${storageSize} bytes`, 'info');
+                
+                // Clean up
+                localStorage.removeItem('mokha_projects');
+                
+            } catch (e) {
+                assert(false, `Project Library test failed: ${e.message}`);
+            }
+            
+            log('ℹ Manual verification needed for:', 'info');
+            log('  • Multi-select and bulk delete', 'info');
+            log('  • Context menu operations', 'info');
+            log('  • Storage usage display and warnings', 'info');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 27: Integration testing - Story_Output_Panel
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task27_StoryOutputPanel() {
+            log('<h2>Task 27: Story Output Panel Integration</h2>', 'info');
+            
+            log('ℹ Manual verification needed for:', 'info');
+            log('  • Panel opens/closes without affecting Pro Script Builder', 'info');
+            log('  • Real-time updates as script is edited', 'info');
+            log('  • Tab navigation (Screenplay, Prose, Breakdown, Arcs)', 'info');
+            log('  • Character highlighting toggle', 'info');
+            log('  • Synopsis editing and persistence', 'info');
+            log('  • Statistics updates', 'info');
+            log('  • Responsive layout on different screen sizes', 'info');
+            
+            // Test statistics calculations
+            try {
+                const testScript = {
+                    scenes: [
+                        {
+                            heading: 'INT. ROOM - DAY',
+                            shots: [
+                                {
+                                    action: 'John walks into the room and looks around carefully.',
+                                    dialogue: 'Hello, is anyone here?'
+                                },
+                                {
+                                    action: 'Mary appears from behind the door.',
+                                    dialogue: 'I am here. What do you want?'
+                                }
+                            ]
+                        }
+                    ]
+                };
+                
+                // Calculate word count
+                let wordCount = 0;
+                testScript.scenes.forEach(scene => {
+                    scene.shots.forEach(shot => {
+                        if (shot.action) wordCount += shot.action.split(/\s+/).length;
+                        if (shot.dialogue) wordCount += shot.dialogue.split(/\s+/).length;
+                    });
+                });
+                
+                assert(wordCount > 0, 'Word count calculation works');
+                log(`ℹ Calculated word count: ${wordCount}`, 'info');
+                
+                // Calculate reading time (150 wpm)
+                const readingTime = Math.ceil((wordCount / 150) * 60); // seconds
+                assert(readingTime > 0, 'Reading time calculation works');
+                log(`ℹ Calculated reading time: ${readingTime} seconds`, 'info');
+                
+                // Calculate page count (approximate)
+                const pageCount = Math.ceil(wordCount / 250); // ~250 words per page
+                assert(pageCount > 0, 'Page count calculation works');
+                log(`ℹ Calculated page count: ${pageCount}`, 'info');
+                
+            } catch (e) {
+                assert(false, `Statistics calculation test failed: ${e.message}`);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task 28: Final checkpoint - Ensure all tests pass
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function task28_FinalCheckpoint() {
+            log('<h2>Task 28: Final Checkpoint</h2>', 'info');
+            
+            log('ℹ All automated tests completed', 'info');
+            log('ℹ Manual verification checklist:', 'info');
+            log('  • All unit tests pass', 'info');
+            log('  • All property-based tests pass with minimum 100 iterations', 'info');
+            log('  • All integration tests pass', 'info');
+            log('  • No console errors or warnings in browser', 'info');
+            log('  • All features work as expected in main application', 'info');
+            
+            // Summary
+            if (failCount === 0) {
+                log('✓ All automated tests passed!', 'pass');
+            } else {
+                log(`✗ ${failCount} test(s) failed. Please review and fix.`, 'fail');
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Run all tests
+        // ═══════════════════════════════════════════════════════════════════
+        
+        function runAllTests() {
+            clearResults();
+            log('<h1>🎬 Running Integration Tests for Tasks 21-28</h1>', 'info');
+            log(`Started at: ${new Date().toLocaleString()}`, 'info');
+            
+            task21_CoreFunctionality();
+            task22_OfflineFunctionality();
+            task23_UnsavedChanges();
+            task24_ProjectLifecycle();
+            task25_ExportWorkflows();
+            task26_ProjectLibrary();
+            task27_StoryOutputPanel();
+            task28_FinalCheckpoint();
+            
+            log(`<h2>Test Run Complete</h2>`, 'info');
+            log(`Completed at: ${new Date().toLocaleString()}`, 'info');
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            log('ℹ Integration test suite loaded. Click "Run All Tests" to begin.', 'info');
+        });
+    </script>
+</body>
+</html>

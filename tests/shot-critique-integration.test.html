@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shot Critique Integration Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background: #10b981;
+            color: white;
+        }
+        .fail {
+            background: #ef4444;
+            color: white;
+        }
+        .info {
+            background: #3b82f6;
+            color: white;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shot Critique Integration Test</h1>
+    <p>Testing the integration of Shot Critique with Pro Script Builder (Task 5.3)</p>
+
+    <div class="test-section">
+        <h2>Test 1: Shot Critique Handler Exists</h2>
+        <button onclick="testHandlerExists()">Run Test</button>
+        <div id="test1-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Shot Data Extraction</h2>
+        <button onclick="testShotDataExtraction()">Run Test</button>
+        <div id="test2-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: FastBrain Critique Integration</h2>
+        <button onclick="testFastBrainCritique()">Run Test</button>
+        <div id="test3-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Shot Type Inference</h2>
+        <button onclick="testShotTypeInference()">Run Test</button>
+        <div id="test4-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Critique Annotations Display</h2>
+        <button onclick="testAnnotationsDisplay()">Run Test</button>
+        <div id="test5-result"></div>
+    </div>
+
+    <script>
+        // Mock FastBrain for testing
+        const FastBrain = {
+            critiqueShot(shot, prevShot, allShots) {
+                const annotations = [];
+                if (!shot) return annotations;
+                const shotId = shot.id || `shot_${Math.random()}`;
+
+                // Rule 1: Missing emotional anchor
+                const emotionalKeywords = ['emotion', 'feel', 'react', 'expression', 'fear', 'joy', 'anger', 'sad', 'tense', 'relief', 'shock', 'wonder', 'smile', 'cry', 'laugh', 'stare'];
+                const subjectText = (shot.subject || '').toLowerCase();
+                if (!emotionalKeywords.some(kw => subjectText.includes(kw))) {
+                    annotations.push({
+                        id: `${shotId}_emotional`,
+                        shotId,
+                        code: 'NO-EMOTION',
+                        severity: 'note',
+                        message: 'No emotional anchor detected in this shot.',
+                        suggestion: 'Add a character reaction or emotional tone (e.g. "fearful expression", "joyful reaction").',
+                    });
+                }
+
+                return annotations;
+            }
+        };
+
+        function testHandlerExists() {
+            const result = document.getElementById('test1-result');
+            result.innerHTML = '<div class="test-result info">Checking if handleCritiqueShot function exists...</div>';
+            
+            // Since we can't directly access the React component, we'll check if the function pattern exists in the HTML
+            fetch('../mokha-suite PRO Vqr.html')
+                .then(response => response.text())
+                .then(html => {
+                    const hasHandler = html.includes('handleCritiqueShot');
+                    const hasButton = html.includes('Critique Shot');
+                    const hasModal = html.includes('Shot Critique Modal');
+                    
+                    if (hasHandler && hasButton && hasModal) {
+                        result.innerHTML = `
+                            <div class="test-result pass">✓ PASS: Shot Critique integration found</div>
+                            <ul>
+                                <li>Handler function: ${hasHandler ? '✓' : '✗'}</li>
+                                <li>Critique button: ${hasButton ? '✓' : '✗'}</li>
+                                <li>Critique modal: ${hasModal ? '✓' : '✗'}</li>
+                            </ul>
+                        `;
+                    } else {
+                        result.innerHTML = `
+                            <div class="test-result fail">✗ FAIL: Missing components</div>
+                            <ul>
+                                <li>Handler function: ${hasHandler ? '✓' : '✗'}</li>
+                                <li>Critique button: ${hasButton ? '✓' : '✗'}</li>
+                                <li>Critique modal: ${hasModal ? '✓' : '✗'}</li>
+                            </ul>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    result.innerHTML = `<div class="test-result fail">✗ ERROR: ${error.message}</div>`;
+                });
+        }
+
+        function testShotDataExtraction() {
+            const result = document.getElementById('test2-result');
+            result.innerHTML = '<div class="test-result info">Testing shot data extraction...</div>';
+            
+            // Mock shot data
+            const mockShot = {
+                id: 'shot-1',
+                sceneHeading: 'INT. COFFEE SHOP - DAY',
+                elements: [
+                    { id: 'elem-1', type: 'action', text: 'John enters nervously, looking around.' },
+                    { id: 'elem-2', type: 'dialogue', characterName: 'JOHN', parenthetical: 'nervously', dialogue: 'Is anyone here?' }
+                ]
+            };
+
+            // Extract data (simulating the handler logic)
+            const shotData = {
+                id: mockShot.id,
+                sceneHeading: mockShot.sceneHeading || '',
+                actions: [],
+                dialogues: [],
+                characters: []
+            };
+
+            mockShot.elements.forEach(element => {
+                if (element.type === 'action' && element.text) {
+                    shotData.actions.push(element.text);
+                } else if (element.type === 'dialogue') {
+                    if (element.characterName) {
+                        shotData.characters.push(element.characterName);
+                    }
+                    shotData.dialogues.push({
+                        character: element.characterName || '',
+                        parenthetical: element.parenthetical || '',
+                        dialogue: element.dialogue || ''
+                    });
+                }
+            });
+
+            const hasSceneHeading = shotData.sceneHeading === 'INT. COFFEE SHOP - DAY';
+            const hasActions = shotData.actions.length === 1;
+            const hasDialogues = shotData.dialogues.length === 1;
+            const hasCharacters = shotData.characters.length === 1;
+
+            if (hasSceneHeading && hasActions && hasDialogues && hasCharacters) {
+                result.innerHTML = `
+                    <div class="test-result pass">✓ PASS: Shot data extracted correctly</div>
+                    <pre>${JSON.stringify(shotData, null, 2)}</pre>
+                `;
+            } else {
+                result.innerHTML = `
+                    <div class="test-result fail">✗ FAIL: Shot data extraction incomplete</div>
+                    <ul>
+                        <li>Scene heading: ${hasSceneHeading ? '✓' : '✗'}</li>
+                        <li>Actions: ${hasActions ? '✓' : '✗'}</li>
+                        <li>Dialogues: ${hasDialogues ? '✓' : '✗'}</li>
+                        <li>Characters: ${hasCharacters ? '✓' : '✗'}</li>
+                    </ul>
+                `;
+            }
+        }
+
+        function testFastBrainCritique() {
+            const result = document.getElementById('test3-result');
+            result.innerHTML = '<div class="test-result info">Testing FastBrain critique...</div>';
+            
+            // Mock shot without emotional content
+            const mockShot = {
+                id: 'shot-1',
+                subject: 'John walks into the room',
+                selections: { shotType: 'Medium Shot' }
+            };
+
+            const annotations = FastBrain.critiqueShot(mockShot, null, [mockShot]);
+
+            if (annotations.length > 0 && annotations[0].code === 'NO-EMOTION') {
+                result.innerHTML = `
+                    <div class="test-result pass">✓ PASS: FastBrain critique working</div>
+                    <pre>${JSON.stringify(annotations, null, 2)}</pre>
+                `;
+            } else {
+                result.innerHTML = `
+                    <div class="test-result fail">✗ FAIL: FastBrain critique not working as expected</div>
+                    <pre>${JSON.stringify(annotations, null, 2)}</pre>
+                `;
+            }
+        }
+
+        function testShotTypeInference() {
+            const result = document.getElementById('test4-result');
+            result.innerHTML = '<div class="test-result info">Testing shot type inference...</div>';
+            
+            const inferShotType = (shot) => {
+                const actionText = (shot.elements || [])
+                    .filter(e => e.type === 'action')
+                    .map(e => e.text)
+                    .join(' ')
+                    .toLowerCase();
+
+                if (actionText.includes('wide') || actionText.includes('establishing')) return 'Wide Shot';
+                if (actionText.includes('close') || actionText.includes('close-up')) return 'Close-Up';
+                if (actionText.includes('medium')) return 'Medium Shot';
+                if (actionText.includes('over the shoulder') || actionText.includes('ots')) return 'Over-the-Shoulder';
+                return 'Medium Shot';
+            };
+
+            const testCases = [
+                { shot: { elements: [{ type: 'action', text: 'Wide shot of the city' }] }, expected: 'Wide Shot' },
+                { shot: { elements: [{ type: 'action', text: 'Close-up on her face' }] }, expected: 'Close-Up' },
+                { shot: { elements: [{ type: 'action', text: 'Medium shot of John' }] }, expected: 'Medium Shot' },
+                { shot: { elements: [{ type: 'action', text: 'Over the shoulder view' }] }, expected: 'Over-the-Shoulder' },
+                { shot: { elements: [{ type: 'action', text: 'John walks' }] }, expected: 'Medium Shot' }
+            ];
+
+            let passed = 0;
+            let failed = 0;
+            let results = [];
+
+            testCases.forEach((testCase, idx) => {
+                const inferred = inferShotType(testCase.shot);
+                if (inferred === testCase.expected) {
+                    passed++;
+                    results.push(`<li>✓ Test ${idx + 1}: ${testCase.expected}</li>`);
+                } else {
+                    failed++;
+                    results.push(`<li>✗ Test ${idx + 1}: Expected ${testCase.expected}, got ${inferred}</li>`);
+                }
+            });
+
+            if (failed === 0) {
+                result.innerHTML = `
+                    <div class="test-result pass">✓ PASS: All shot type inferences correct (${passed}/${testCases.length})</div>
+                    <ul>${results.join('')}</ul>
+                `;
+            } else {
+                result.innerHTML = `
+                    <div class="test-result fail">✗ FAIL: Some shot type inferences incorrect (${passed}/${testCases.length})</div>
+                    <ul>${results.join('')}</ul>
+                `;
+            }
+        }
+
+        function testAnnotationsDisplay() {
+            const result = document.getElementById('test5-result');
+            result.innerHTML = '<div class="test-result info">Testing annotations display...</div>';
+            
+            fetch('../mokha-suite PRO Vqr.html')
+                .then(response => response.text())
+                .then(html => {
+                    const hasAnnotationsList = html.includes('critiqueAnnotations.map');
+                    const hasSeverityCheck = html.includes('annotation.severity');
+                    const hasMessageDisplay = html.includes('annotation.message');
+                    const hasSuggestionDisplay = html.includes('annotation.suggestion');
+                    const hasCodeDisplay = html.includes('annotation.code');
+                    
+                    if (hasAnnotationsList && hasSeverityCheck && hasMessageDisplay && hasSuggestionDisplay && hasCodeDisplay) {
+                        result.innerHTML = `
+                            <div class="test-result pass">✓ PASS: Annotations display implemented correctly</div>
+                            <ul>
+                                <li>Annotations list: ${hasAnnotationsList ? '✓' : '✗'}</li>
+                                <li>Severity check: ${hasSeverityCheck ? '✓' : '✗'}</li>
+                                <li>Message display: ${hasMessageDisplay ? '✓' : '✗'}</li>
+                                <li>Suggestion display: ${hasSuggestionDisplay ? '✓' : '✗'}</li>
+                                <li>Code display: ${hasCodeDisplay ? '✓' : '✗'}</li>
+                            </ul>
+                        `;
+                    } else {
+                        result.innerHTML = `
+                            <div class="test-result fail">✗ FAIL: Missing annotation display components</div>
+                            <ul>
+                                <li>Annotations list: ${hasAnnotationsList ? '✓' : '✗'}</li>
+                                <li>Severity check: ${hasSeverityCheck ? '✓' : '✗'}</li>
+                                <li>Message display: ${hasMessageDisplay ? '✓' : '✗'}</li>
+                                <li>Suggestion display: ${hasSuggestionDisplay ? '✓' : '✗'}</li>
+                                <li>Code display: ${hasCodeDisplay ? '✓' : '✗'}</li>
+                            </ul>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    result.innerHTML = `<div class="test-result fail">✗ ERROR: ${error.message}</div>`;
+                });
+        }
+
+        // Run all tests on load
+        window.addEventListener('load', () => {
+            console.log('Shot Critique Integration Test Suite loaded');
+        });
+    </script>
+</body>
+</html>

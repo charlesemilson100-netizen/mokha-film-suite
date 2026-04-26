@@ -1,0 +1,325 @@
+# Implementation Plan: Director Intelligence Suite
+
+## Overview
+
+Implement four interconnected AI-powered features inside the existing single-file Electron + React 18 app (`mokha-suite PRO Vqr.html`). All code goes inside the existing `<script type="text/babel">` block. No new npm dependencies. Foundation first, then features, then integration wiring.
+
+## Tasks
+
+- [x] 1. Define constants and data structures at module scope
+  - [x] 1.1 Define `FAST_BRAIN_PATTERNS` array with all 20+ rule pattern objects
+    - Each pattern: `{ id, category, description, test(q, snap), respond(q, snap) }`
+    - Cover all categories: style (5), continuity (3), emotional (2), pacing (2), distribution (2), coverage (1), lighting (2), character (2), general (4)
+    - _Requirements: 2.10_
+  - [x] 1.2 Define `CINEMATIC_GRAMMAR` lookup table object
+    - Keys: shot type abbreviations (EWS, WS, MS, CU, ECU, etc.)
+    - Values: `{ nextShotType, fullName, rationale, sequence }`
+    - Cover all 5 sequences: push-in, pull-out, coverage, reaction, reveal
+    - _Requirements: 6.3_
+  - [x] 1.3 Define `SHORTCUT_REGISTRY` constant (14 entries)
+    - Each entry: `{ key, modifiers, description, action, requiresShot }`
+    - Cover all shortcuts from Req 8.1 (N, D, L, S, Cmd+K, ?, Escape, arrows, Enter, Cmd+Z, Cmd+Shift+Z, Cmd+D, Cmd+E)
+    - _Requirements: 8.1_
+  - [x] 1.4 Define `SHORTCUT_GROUPS` constant for Cheat Sheet display
+    - Groups: Shot Actions, Scene Actions, Navigation, AI Features, App Controls
+    - Each group: `{ label, shortcuts: [{ key, display, description }] }`
+    - _Requirements: 10.2_
+
+- [x] 2. Implement FastBrain module
+  - [x] 2.1 Implement `FastBrain` plain JS object with core analysis methods
+    - `match(query, projectSnapshot)` — iterate patterns, return first match or null
+    - `getFallbackResponse(query)` — generic fallback string when no pattern matches
+    - `applyDirectorStyle(scene, styleName)` — apply Director_Style template to scene shots
+    - `analyzeEmotionalArc(shots)` — check shots against emotional arc checklist, return gap annotations
+    - `analyzeTensionArc(shots)` — analyze tension build in sequence
+    - `checkContinuity(shotA, shotB)` — flag subject/costume/location inconsistency
+    - `runContinuityReport(snap)` — run continuity check across all shots in snapshot
+    - `checkCostumeConsistency(snap)` / `checkLocationConsistency(snap)`
+    - `checkLightingConflict(shotA, shotB)` / `checkLightingConflicts(shots)`
+    - `suggestLighting(query, snap)`
+    - `analyzeShotDistribution(shots)` — detect overused shot types
+    - `analyzePacing(shots)` / `analyzeCutFrequency(shots)`
+    - `checkCoverage(shots)` — flag missing establishing shot or close-up
+    - `checkCharacterConsistency(snap)` / `findMissingReactions(shots)`
+    - `summarizeProject(snap)` / `summarizeScene(scene)` / `reportStats(snap)` / `getExportHelp()`
+    - _Requirements: 1.1, 1.2, 2.5, 2.9, 2.10_
+  - [x] 2.2 Implement `FastBrain.critiqueShot(shot, prevShot, allShots)`
+    - Returns `CritiqueAnnotation[]` array
+    - Detect 5 rule types: continuity conflict, missing emotional anchor, lighting conflict, missing coverage, shot type overuse (3+ consecutive same type)
+    - Each annotation: `{ id, shotId, code, severity ('warning'|'note'), message, suggestion }`
+    - _Requirements: 4.1, 4.2_
+  - [ ]* 2.3 Write unit tests for FastBrain.critiqueShot
+    - Test each of the 5 rule types with a minimal shot fixture
+    - Test that no annotations are returned for a clean shot
+    - _Requirements: 4.2_
+
+- [x] 3. Implement DeepBrain module and BrainRouter
+  - [x] 3.1 Implement `DeepBrain` plain JS object
+    - `SUPPORTED_MODELS` array with SmolLM2-360M and Qwen2.5-0.5B entries (never Phi-3)
+    - `init(modelId, onProgress, engineRef)` — create MLCEngine, set progress callback, call `engine.reload(modelId)`, store in ref
+    - `generate(prompt, engineRef, signal)` — call `engineRef.current.chat.completions.create(...)`, return response string
+    - `unload(engineRef)` — call `engine.unload()`, set ref to null
+    - _Requirements: 1.3, 1.7, 1.9, 11.8_
+  - [x] 3.2 Implement `BrainRouter` plain JS object
+    - `route(query, projectSnapshot, brainMode, deepBrainEngineRef)` — async, returns `{ source, response }`
+    - Fast path: call `FastBrain.match()`, return immediately if matched
+    - Deep path: build context prompt, call `DeepBrain.generate()` when `brainMode === 'deep'`
+    - Fallback: call `FastBrain.getFallbackResponse()` when Deep Brain not active and no match
+    - _Requirements: 1.10, 2.5, 2.6_
+  - [x] 3.3 Implement `buildContextPrompt(query, projectSnapshot)` helper
+    - Serialize snapshot to a compact director-context string
+    - Include active scene shots, characters, locations, Director_Style
+    - _Requirements: 2.4_
+  - [x] 3.4 Implement `resolveScene(query, snap)` and `resolveShot(query, snap)` helpers
+    - Parse "scene N" / "shot N" references from query string
+    - Return matching scene/shot object from snapshot or active scene as fallback
+    - _Requirements: 2.13_
+
+- [x] 4. Add brain mode state to root App component
+  - [x] 4.1 Add `brainMode` state (`'fast' | 'deep-loading' | 'deep'`) to root App
+    - Initialize from `localStorage.getItem('brainMode')` defaulting to `'fast'`
+    - _Requirements: 1.8_
+  - [x] 4.2 Add `deepBrainEngineRef` React ref (`React.useRef(null)`) to root App
+    - _Requirements: 1.3, 11.8_
+  - [x] 4.3 Add `deepBrainLoadingProgress` state (number 0–100) to root App
+    - _Requirements: 1.4_
+  - [x] 4.4 Implement `handleBrainModeChange(newMode)` callback in root App
+    - On switch to `'deep'`: show confirmation dialog with model size, then call `DeepBrain.init(...)` with progress callback, persist to localStorage
+    - On switch to `'fast'`: call `DeepBrain.unload(deepBrainEngineRef)`, set `brainMode` to `'fast'`, persist to localStorage
+    - Handle init errors: display toast, keep `brainMode` as `'fast'`
+    - _Requirements: 1.3, 1.7, 1.8, 3.3, 3.4, 3.7_
+
+- [x] 5. Implement BrainStatusIndicator component
+  - [x] 5.1 Define `BrainStatusIndicator` functional component
+    - Props: `{ brainMode, loadingProgress }`
+    - Render gold pill "FAST ⚡" when `brainMode === 'fast'`
+    - Render animated cyan pill "Loading X%" when `brainMode === 'deep-loading'`
+    - Render cyan pill "DEEP 🧠" when `brainMode === 'deep'`
+    - Use existing Tailwind + lg-* classes; no new CSS
+    - _Requirements: 1.4, 1.5, 1.6_
+  - [x] 5.2 Mount `BrainStatusIndicator` in the existing app header
+    - Place between AutoSaveIndicator and Settings button
+    - Pass `brainMode` and `deepBrainLoadingProgress` as props
+    - _Requirements: 1.4, 1.5, 1.6_
+
+- [x] 6. Add Mode_Toggle to Settings panel
+  - [x] 6.1 Add "AI Intelligence" section to the existing Settings panel JSX
+    - Section header: "AI Intelligence"
+    - Mode_Toggle: two-state button group "FAST MODE" / "DEEP MODE"
+    - When Deep Mode active: show loaded model name and model selector (SmolLM2-360M vs Qwen2.5-0.5B)
+    - Wire toggle to `handleBrainModeChange` callback
+    - _Requirements: 3.1, 3.2, 3.5, 3.6_
+
+- [x] 7. Checkpoint — Dual-Brain foundation complete
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 8. Implement Director Brain Chat Panel
+  - [x] 8.1 Define `buildProjectSnapshot(appState)` function
+    - Reads all scenes, shots, characters, locations, active Director_Style from app state
+    - Returns a `ProjectSnapshot` plain object
+    - _Requirements: 2.2, 2.4_
+  - [x] 8.2 Define `DirectorBrainPanel` functional component
+    - Props: `{ brainMode, deepBrainEngineRef, projectSnapshot, onBrainModeChange, loadingProgress }`
+    - State: `messages`, `input`, `isGenerating`, `timeoutId`
+    - Render chat thread using existing `lg-bubble-bot` / `lg-bubble-user` classes
+    - Show `source` badge ("DEEP") on Deep Brain responses
+    - Auto-scroll to bottom on new message (`messagesEndRef`)
+    - _Requirements: 2.1, 2.3, 2.7, 2.12_
+  - [x] 8.3 Implement `handleSubmit` in DirectorBrainPanel
+    - Append user message to thread
+    - Call `BrainRouter.route(...)` with 30-second timeout (use `AbortController` or `setTimeout`)
+    - On timeout: display timeout message, show cancel button
+    - Append AI response to thread with source label
+    - _Requirements: 2.4, 2.5, 2.6, 11.7_
+  - [x] 8.4 Add example query chips to DirectorBrainPanel
+    - Show 6 `lg-chip` buttons when `messages.length === 0`
+    - Clicking a chip sets `input` to that query text
+    - Queries: Kubrick rewrite, missing emotional beats, continuity check, pacing, shot type overuse, coverage suggestion
+    - _Requirements: 2.11_
+  - [x] 8.5 Add onboarding tooltip to DirectorBrainPanel
+    - Show on first open only (check `localStorage.getItem('directorBrainOnboarded')`)
+    - Explain Fast Brain vs Deep Brain distinction
+    - Dismiss sets `localStorage.setItem('directorBrainOnboarded', 'true')`
+    - _Requirements: 12.1, 12.6_
+  - [x] 8.6 Add "Director" tab to existing MokhaAgentPanel tab bar
+    - Extend tab list: `'chat' | 'challenge' | 'stats' | 'director'`
+    - Render `DirectorBrainPanel` when active tab is `'director'`
+    - Pass `projectSnapshot` built from current app state
+    - _Requirements: 2.1_
+  - [x] 8.7 Add `Cmd+D` / `Ctrl+D` shortcut to open Director Brain panel
+    - In the global shortcut handler (Task 13): open MokhaAgentPanel and switch to `'director'` tab
+    - _Requirements: 8.1m_
+
+- [x] 9. Implement Shot Critique Engine
+  - [x] 9.1 Add `critiqueAnnotations` and `dismissedAnnotations` state to root App
+    - `critiqueAnnotations`: `{ [shotId]: CritiqueAnnotation[] }`
+    - `dismissedAnnotations`: `{ [annotationId]: true }`
+    - _Requirements: 4.3, 4.9, 4.10_
+  - [x] 9.2 Add debounced `useEffect` in root App to run critique on shot changes
+    - Watch `shots` array (or full scenes state)
+    - Debounce 300ms with `setTimeout` / `clearTimeout`
+    - For each shot: call `FastBrain.critiqueShot(shot, prevShot, allShots)`
+    - Store results in `critiqueAnnotations` state
+    - Skip shots whose annotations are all dismissed
+    - _Requirements: 4.1, 4.5, 11.4_
+  - [x] 9.3 Implement `CritiqueBadge` functional component
+    - Props: `{ annotation, onDismiss }`
+    - Render compact badge: gold for `'warning'`, cyan for `'note'`
+    - Toggle expanded tooltip on click showing full message + suggestion + Dismiss button
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 9.4 Mount `CritiqueBadge` components on each `ShotCard`
+    - Read `critiqueAnnotations[shot.id]` filtered by `dismissedAnnotations`
+    - Render one badge per active annotation
+    - Show green "Clean" indicator when all annotations resolved/dismissed
+    - Wire `onDismiss` to update `dismissedAnnotations` state
+    - _Requirements: 4.3, 4.9, 5.1, 5.5_
+  - [x] 9.5 Add scene-level critique count to scene header
+    - Sum all active (non-dismissed) annotations across shots in the scene
+    - Display count badge in scene header; hide when count is 0
+    - _Requirements: 5.4_
+  - [x] 9.6 Add "Run Full Critique" action button
+    - Place in scene header or toolbar
+    - On click: immediately re-run `FastBrain.critiqueShot` for all shots (bypass debounce)
+    - _Requirements: 5.6_
+  - [x] 9.7 Add first-time critique explainer
+    - Show once when first annotation appears (check `localStorage.getItem('critiqueExplainerSeen')`)
+    - Brief inline tooltip explaining what critique badges are
+    - Dismiss sets localStorage flag
+    - _Requirements: 12.2_
+  - [ ]* 9.8 Write unit tests for CritiqueBadge rendering
+    - Test warning vs note color classes
+    - Test dismiss callback fires correctly
+    - _Requirements: 5.3_
+
+- [x] 10. Checkpoint — Critique Engine complete
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 11. Implement Shot Sequence Intelligence
+  - [x] 11.1 Implement `getNextShotSuggestion(shots)` pure function
+    - Read last shot's type abbreviation
+    - Look up in `CINEMATIC_GRAMMAR` table
+    - Return `GrammarTransition` object or `null` if no match
+    - _Requirements: 6.1, 6.2, 6.9_
+  - [x] 11.2 Add `ghostCardSuggestions` state to root App
+    - Shape: `{ [sceneId]: GrammarTransition | null }`
+    - _Requirements: 6.4, 6.8_
+  - [x] 11.3 Add `useEffect` in root App to update ghost card suggestion on shot changes
+    - For each scene: call `getNextShotSuggestion(scene.shots)`
+    - Update `ghostCardSuggestions[sceneId]` with result
+    - Auto-dismiss (set to null) when user adds a different shot type manually
+    - _Requirements: 6.2, 6.7_
+  - [x] 11.4 Implement `GhostCard` functional component
+    - Props: `{ suggestion, onAccept, onDismiss }`
+    - Dashed border, reduced opacity, hover to full opacity
+    - Display: shot type label, rationale text, "Add This Shot" button
+    - _Requirements: 6.4, 6.5, 6.10, 12.3_
+  - [x] 11.5 Implement `SuggestionChip` functional component
+    - Props: `{ suggestion, onAccept }`
+    - Compact pill: shot type abbreviation + "+" button
+    - _Requirements: 7.1, 7.2_
+  - [x] 11.6 Mount `GhostCard` / `SuggestionChip` in filmstrip JSX
+    - After last shot card in each scene's filmstrip
+    - Render `GhostCard` in normal view, `SuggestionChip` in condensed/list view
+    - Only render when `ghostCardSuggestions[sceneId]` is non-null
+    - _Requirements: 6.4, 6.8, 7.1_
+  - [x] 11.7 Implement "Add This Shot" handler for GhostCard / SuggestionChip
+    - Create new shot pre-populated with suggested `shotType`
+    - Inherit active `Director_Style` and `location` from scene
+    - Clear `ghostCardSuggestions[sceneId]` after adding
+    - _Requirements: 6.6, 7.3_
+  - [ ]* 11.8 Write unit tests for getNextShotSuggestion
+    - Test each of the 5 cinematic sequences returns correct next type
+    - Test unknown shot type returns null
+    - _Requirements: 6.3, 6.9_
+
+- [x] 12. Checkpoint — Sequence Intelligence complete
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 13. Implement Keyboard-First Power Mode
+  - [x] 13.1 Add `showCheatSheet` state to root App
+    - Initialize to `false`
+    - _Requirements: 10.1_
+  - [x] 13.2 Add global `keydown` useEffect to root App
+    - Single `document.addEventListener('keydown', handler)` with cleanup
+    - Check `document.activeElement.tagName` to suppress single-key shortcuts when input/textarea/contenteditable has focus
+    - Dispatch to action callbacks from `SHORTCUT_REGISTRY`
+    - Execute within 50ms (synchronous dispatch)
+    - _Requirements: 8.2, 8.3, 8.4_
+  - [x] 13.3 Implement all 14 shortcut actions in the handler
+    - `N`: call existing new-shot action for active scene
+    - `D`: call existing duplicate-shot action on selected shot
+    - `L`: call existing toggle-continuity-lock on selected shot
+    - `S`: call existing Shotify action on selected shot
+    - `Cmd+K` / `Ctrl+K`: open Command Palette
+    - `?`: toggle `showCheatSheet`
+    - `Escape`: close topmost open overlay/panel/modal
+    - `ArrowUp` / `ArrowDown`: navigate shots in active scene
+    - `ArrowLeft` / `ArrowRight`: navigate scenes
+    - `Enter`: open shot editor for selected shot
+    - `Cmd+Z` / `Ctrl+Z`: call existing undo action
+    - `Cmd+Shift+Z` / `Ctrl+Shift+Z`: call existing redo action
+    - `Cmd+D` / `Ctrl+D`: open Director Brain panel (Task 8.7)
+    - `Cmd+E` / `Ctrl+E`: call existing export action
+    - _Requirements: 8.1_
+  - [x] 13.4 Add toast notification for shortcuts requiring a selected shot
+    - When `requiresShot === true` and no shot is selected: show brief toast "Select a shot first"
+    - Reuse existing toast system
+    - _Requirements: 8.5_
+
+- [x] 14. Implement CheatSheetOverlay component
+  - [x] 14.1 Define `CheatSheetOverlay` functional component
+    - Props: `{ isOpen, onClose }`
+    - Render via `ReactDOM.createPortal` into `document.body`
+    - Full-screen liquid glass overlay (`fixed inset-0 z-[99999] lg-panel`)
+    - Inner panel: `max-w-3xl`, `max-h-[80vh]`, scrollable, `animate-palette-in`
+    - Header: "⌨ Keyboard Shortcuts" title + X close button
+    - Body: iterate `SHORTCUT_GROUPS`, render group label + grid of shortcut rows
+    - Each row: description text + `<kbd>` element with display key
+    - Close on backdrop click, `Escape`, or `?` key
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
+  - [x] 14.2 Mount `CheatSheetOverlay` in root App JSX
+    - Pass `isOpen={showCheatSheet}` and `onClose={() => setShowCheatSheet(false)}`
+    - _Requirements: 10.1_
+
+- [x] 15. Extend Command Palette with AI actions and recently-used section
+  - [x] 15.1 Add AI actions to the existing Command Palette action list
+    - "Open Director Brain" (Cmd+D)
+    - "Run Full Critique"
+    - "Open Cheat Sheet" (?)
+    - "Switch to Deep Brain Mode"
+    - "Switch to Fast Brain Mode"
+    - _Requirements: 9.4, 10.7_
+  - [x] 15.2 Add recently-used section to Command Palette
+    - Track last 5 executed palette actions in `localStorage` key `'cmdPaletteRecent'`
+    - On palette open: read recent list and render as a "Recently Used" section above main list
+    - On action execute: prepend to recent list, trim to 5, persist to localStorage
+    - _Requirements: 9.7_
+
+- [x] 16. Add first-launch keyboard shortcut banner
+  - Show dismissible banner on first app launch (check `localStorage.getItem('kbShortcutsBannerSeen')`)
+  - Banner text: inform user shortcuts are available, `?` opens cheat sheet
+  - Dismiss sets localStorage flag
+  - _Requirements: 12.4_
+
+- [x] 17. Final checkpoint — Full integration
+  - [x] 17.1 Verify BrainRouter correctly routes all 20+ Fast Brain patterns
+    - Manually test each pattern category in Director Brain panel
+    - _Requirements: 2.5, 2.10_
+  - [x] 17.2 Verify Deep Brain timeout and cancel flow
+    - Confirm 30-second timeout fires and cancel button appears
+    - _Requirements: 11.7_
+  - [x] 17.3 Verify all 14 keyboard shortcuts fire correct actions
+    - Test input-focus suppression for single-key shortcuts
+    - _Requirements: 8.1, 8.3_
+  - [x] 17.4 Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- All code goes inside the existing `<script type="text/babel">` block in `mokha-suite PRO Vqr.html`
+- No new npm dependencies — use only what's already available (`window.webllm`, Tailwind, existing lg-* classes)
+- Constants (`FAST_BRAIN_PATTERNS`, `CINEMATIC_GRAMMAR`, `SHORTCUT_REGISTRY`, `SHORTCUT_GROUPS`) must be defined at module scope before any component that references them
+- `FastBrain`, `DeepBrain`, and `BrainRouter` are plain JS objects, not React components — define them at module scope
+- `deepBrainEngineRef` is a React ref stored in root App to avoid re-renders when the engine state changes
+- The existing `MokhaAgentPanel` tab bar is extended, not replaced
+- Critique `useEffect` debounce must use `clearTimeout` in the cleanup function to avoid stale closures

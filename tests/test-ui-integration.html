@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Project Deletion and Duplication UI</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .project-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            background: white;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+        .delete-btn {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        .delete-btn:hover {
+            background: #fef2f2;
+        }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .confirm-btn {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+        .confirm-btn:hover {
+            background: #dc2626;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #d1fae5;
+            color: #065f46;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Mock LocalStorage_Manager
+        const LocalStorage_Manager = {
+            STORAGE_KEY: 'test_projects',
+            
+            generateUUID() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            },
+            
+            loadAllProjects() {
+                try {
+                    const data = localStorage.getItem(this.STORAGE_KEY);
+                    return data ? JSON.parse(data) : [];
+                } catch (e) {
+                    return [];
+                }
+            },
+            
+            loadProjectById(projectId) {
+                const projects = this.loadAllProjects();
+                return projects.find(p => p.id === projectId) || null;
+            },
+            
+            saveProject(projectData, isNewProject = false) {
+                const projects = this.loadAllProjects();
+                
+                if (isNewProject) {
+                    projectData.id = this.generateUUID();
+                    projectData.createdAt = Date.now();
+                    projects.push(projectData);
+                } else {
+                    const index = projects.findIndex(p => p.id === projectData.id);
+                    if (index !== -1) {
+                        projects[index] = projectData;
+                    }
+                }
+                
+                projectData.lastModified = Date.now();
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(projects));
+                return projectData;
+            },
+            
+            deleteProject(projectId) {
+                const projects = this.loadAllProjects();
+                const filteredProjects = projects.filter(p => p.id !== projectId);
+                
+                if (filteredProjects.length === projects.length) {
+                    return false;
+                }
+                
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredProjects));
+                return true;
+            },
+            
+            duplicateProject(projectId) {
+                const originalProject = this.loadProjectById(projectId);
+                if (!originalProject) {
+                    throw new Error(`Project with ID ${projectId} not found`);
+                }
+                
+                const duplicatedProject = JSON.parse(JSON.stringify(originalProject));
+                duplicatedProject.id = this.generateUUID();
+                duplicatedProject.title = `${originalProject.title} (Copy)`;
+                duplicatedProject.createdAt = Date.now();
+                duplicatedProject.lastModified = Date.now();
+                
+                return this.saveProject(duplicatedProject, true);
+            }
+        };
+
+        // Confirmation Dialog Component
+        const ConfirmDialog = ({ message, onConfirm, onCancel, confirmLabel = 'Delete' }) => (
+            <div className="modal-overlay" onClick={onCancel}>
+                <div className="modal" onClick={e => e.stopPropagation()}>
+                    <h3 style={{ marginTop: 0 }}>Confirm Action</h3>
+                    <p>{message}</p>
+                    <div className="modal-actions">
+                        <button onClick={onCancel}>Cancel</button>
+                        <button onClick={onConfirm} className="confirm-btn">{confirmLabel}</button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // useConfirm hook
+        const useConfirm = () => {
+            const [dialog, setDialog] = useState(null);
+            
+            const confirm = (message, options = {}) => new Promise(resolve => {
+                setDialog({ message, options, resolve });
+            });
+            
+            const handleConfirm = () => {
+                dialog?.resolve(true);
+                setDialog(null);
+            };
+            
+            const handleCancel = () => {
+                dialog?.resolve(false);
+                setDialog(null);
+            };
+            
+            const ConfirmUI = dialog ? (
+                <ConfirmDialog
+                    message={dialog.message}
+                    confirmLabel={dialog.options.confirmLabel || 'Delete'}
+                    onConfirm={handleConfirm}
+                    onCancel={handleCancel}
+                />
+            ) : null;
+            
+            return { confirm, ConfirmUI };
+        };
+
+        // Main App Component
+        const App = () => {
+            const [projects, setProjects] = useState([]);
+            const [message, setMessage] = useState('');
+            const { confirm, ConfirmUI } = useConfirm();
+
+            useEffect(() => {
+                loadProjects();
+            }, []);
+
+            const loadProjects = () => {
+                setProjects(LocalStorage_Manager.loadAllProjects());
+            };
+
+            const handleCreateSample = () => {
+                const sampleProject = {
+                    title: `Sample Project ${projects.length + 1}`,
+                    author: 'Test Author',
+                    storyBlueprint: {},
+                    scriptDocument: {},
+                    characterArcs: {},
+                    synopsis: { overview: '', characters: [], setting: '', themeTone: '' },
+                    metadata: { wordCount: 0, pageCount: 0, readingTime: 0, thumbnail: '' }
+                };
+                LocalStorage_Manager.saveProject(sampleProject, true);
+                loadProjects();
+                showMessage('✓ Sample project created');
+            };
+
+            const handleDeleteProject = async (projectId) => {
+                const project = LocalStorage_Manager.loadProjectById(projectId);
+                if (!project) return;
+                
+                const confirmed = await confirm(
+                    `Are you sure you want to delete '${project.title}'? This cannot be undone.`,
+                    { confirmLabel: 'Delete' }
+                );
+                
+                if (confirmed) {
+                    const success = LocalStorage_Manager.deleteProject(projectId);
+                    if (success) {
+                        loadProjects();
+                        showMessage('✓ Project deleted successfully');
+                    }
+                }
+            };
+
+            const handleDuplicateProject = (projectId) => {
+                try {
+                    const duplicated = LocalStorage_Manager.duplicateProject(projectId);
+                    loadProjects();
+                    showMessage(`✓ Project duplicated: ${duplicated.title}`);
+                } catch (error) {
+                    showMessage(`✗ Failed to duplicate: ${error.message}`);
+                }
+            };
+
+            const showMessage = (msg) => {
+                setMessage(msg);
+                setTimeout(() => setMessage(''), 3000);
+            };
+
+            const handleClearAll = () => {
+                localStorage.removeItem(LocalStorage_Manager.STORAGE_KEY);
+                loadProjects();
+                showMessage('✓ All projects cleared');
+            };
+
+            return (
+                <div className="container">
+                    {ConfirmUI}
+                    
+                    <h1>Project Management Test</h1>
+                    <p>Testing deleteProject() and duplicateProject() with confirmation dialogs</p>
+                    
+                    {message && <div className="message">{message}</div>}
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                        <button onClick={handleCreateSample}>Create Sample Project</button>
+                        <button onClick={handleClearAll} style={{ marginLeft: '10px' }}>Clear All</button>
+                    </div>
+
+                    <h2>Projects ({projects.length})</h2>
+                    
+                    {projects.length === 0 ? (
+                        <p style={{ color: '#666' }}>No projects yet. Create a sample project to get started.</p>
+                    ) : (
+                        projects.map(project => (
+                            <div key={project.id} className="project-card">
+                                <h3>{project.title}</h3>
+                                <p style={{ color: '#666', fontSize: '14px' }}>
+                                    by {project.author} • Last modified: {new Date(project.lastModified).toLocaleString()}
+                                </p>
+                                <div className="actions">
+                                    <button onClick={() => handleDuplicateProject(project.id)}>
+                                        📋 Duplicate
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteProject(project.id)}
+                                        className="delete-btn"
+                                    >
+                                        🗑️ Delete
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

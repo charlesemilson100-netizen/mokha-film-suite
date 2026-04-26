@@ -1,0 +1,110 @@
+{
+  "name": "mokha-film-suite",
+  "version": "2.11.0",
+  "description": "MOKHA FILM Suite - Professional AI Film Prompt Builder",
+  "main": "electron/main.js",
+  "homepage": "./",
+  "author": "Charles Emilson",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/charlesemilson100-netizen/mokha-film-suite.git"
+  },
+  "scripts": {
+    "react-start": "react-scripts start",
+    "react-build": "echo 'Skipping React - loading HTML directly'",
+    "react-test": "react-scripts test",
+    "react-eject": "react-scripts eject",
+    "electron-start": "electron .",
+    "electron-dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-build": "npm run react-build && electron-builder",
+    "build": "node bump-version.js && npm run react-build && npm run electron-build",
+    "build-win": "node bump-version.js && npm run react-build && electron-builder --win",
+    "build-mac": "node bump-version.js && npm run react-build && electron-builder --mac",
+    "build-linux": "node bump-version.js && npm run react-build && electron-builder --linux",
+    "build-all": "node bump-version.js && npm run react-build && electron-builder -mwl",
+    "dist": "npm run build"
+  },
+  "dependencies": {
+    "electron-is-dev": "^2.0.0",
+    "electron-updater": "^6.8.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4",
+    "electron-is-dev": "^2.0.0",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.mokha.filmsuit",
+    "productName": "MOKHA FILM Suite",
+    "files": [
+      "public/**/*",
+      "electron/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "charlesemilson100-netizen",
+        "repo": "mokha-film-suite"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MOKHA FILM Suite",
+      "installerIcon": "assets/installerIcon.ico",
+      "uninstallerIcon": "assets/installerIcon.ico",
+      "installerHeader": "assets/installerHeader.bmp",
+      "installerSidebar": "assets/installerSidebar.bmp"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
