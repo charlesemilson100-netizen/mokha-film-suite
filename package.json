@@ -4,7 +4,10 @@
   "description": "MOKHA FILM Suite - Professional AI Film Prompt Builder",
   "main": "electron/main.js",
   "homepage": "./",
-  "author": "Charles Emilson",
+  "author": {
+    "name": "Charles Emilson",
+    "email": "charlesemilson100@users.noreply.github.com"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
