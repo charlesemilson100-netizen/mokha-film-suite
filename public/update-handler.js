@@ -1,16 +1,15 @@
 // Auto-Update Handler for MOKHA FILM Suite
-// This script listens for update events from Electron and shows notifications
+// Uses the electronAPI bridge exposed via preload.js (context-isolated)
 
 (function() {
-    if (!window.require) {
-        console.log('Not running in Electron, update handler disabled');
+    const api = window.electronAPI;
+    if (!api) {
+        console.log('electronAPI not available, update handler disabled');
         return;
     }
 
-    const { ipcRenderer } = window.require('electron');
     let updateToast = null;
 
-    // Styles for update notifications
     const styles = `
         .mokha-update-toast {
             position: fixed;
@@ -24,18 +23,13 @@
             min-width: 350px;
             max-width: 400px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            animation: slideIn 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            animation: mokhaSlideIn 0.3s ease;
         }
 
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+        @keyframes mokhaSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
         }
 
         .mokha-update-header {
@@ -45,9 +39,7 @@
             margin-bottom: 12px;
         }
 
-        .mokha-update-icon {
-            font-size: 24px;
-        }
+        .mokha-update-icon { font-size: 24px; }
 
         .mokha-update-title {
             font-size: 16px;
@@ -98,9 +90,7 @@
             color: white;
         }
 
-        .mokha-update-btn-primary:hover {
-            transform: scale(1.05);
-        }
+        .mokha-update-btn-primary:hover { transform: scale(1.05); }
 
         .mokha-update-btn-secondary {
             background: rgba(255, 255, 255, 0.1);
@@ -126,133 +116,95 @@
             line-height: 1;
         }
 
-        .mokha-update-close:hover {
-            color: #fff;
-        }
+        .mokha-update-close:hover { color: #fff; }
     `;
 
-    // Inject styles
     const styleSheet = document.createElement('style');
     styleSheet.textContent = styles;
     document.head.appendChild(styleSheet);
 
     function showToast(content) {
-        // Remove existing toast
-        if (updateToast) {
-            updateToast.remove();
-        }
-
+        if (updateToast) updateToast.remove();
         updateToast = document.createElement('div');
         updateToast.className = 'mokha-update-toast';
         updateToast.innerHTML = content;
         document.body.appendChild(updateToast);
-
         return updateToast;
     }
 
-    function dismissToast() {
-        if (updateToast) {
-            updateToast.style.animation = 'slideIn 0.3s ease reverse';
-            setTimeout(() => {
-                if (updateToast) updateToast.remove();
-                updateToast = null;
-            }, 300);
-        }
-    }
-
     // Update available
-    ipcRenderer.on('update-available', (event, info) => {
+    api.onUpdateAvailable(function(info) {
         console.log('Update available:', info);
-        
-        const content = `
-            <button class="mokha-update-close" onclick="this.parentElement.remove()">×</button>
-            <div class="mokha-update-header">
-                <span class="mokha-update-icon">🎉</span>
-                <span class="mokha-update-title">Update Available!</span>
-            </div>
-            <div class="mokha-update-message">
-                Version ${info.version} is ready to download.<br>
-                <small style="color: #666;">Current: ${require('electron').remote?.app.getVersion() || '2.11.0'}</small>
-            </div>
-            <div class="mokha-update-actions">
-                <button class="mokha-update-btn mokha-update-btn-primary" id="downloadUpdateBtn">
-                    Download Now
-                </button>
-                <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest('.mokha-update-toast').remove()">
-                    Later
-                </button>
-            </div>
-        `;
 
-        const toast = showToast(content);
-        
-        toast.querySelector('#downloadUpdateBtn').addEventListener('click', () => {
-            ipcRenderer.send('download-update');
+        var content =
+            '<button class="mokha-update-close" onclick="this.parentElement.remove()">&times;</button>' +
+            '<div class="mokha-update-header">' +
+            '  <span class="mokha-update-icon">&#127881;</span>' +
+            '  <span class="mokha-update-title">Update Available!</span>' +
+            '</div>' +
+            '<div class="mokha-update-message">' +
+            '  Version ' + info.version + ' is ready to download.' +
+            '</div>' +
+            '<div class="mokha-update-actions">' +
+            '  <button class="mokha-update-btn mokha-update-btn-primary" id="downloadUpdateBtn">Download Now</button>' +
+            '  <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest(\'.mokha-update-toast\').remove()">Later</button>' +
+            '</div>';
+
+        var toast = showToast(content);
+
+        toast.querySelector('#downloadUpdateBtn').addEventListener('click', function() {
+            api.downloadUpdate();
             toast.querySelector('.mokha-update-message').textContent = 'Downloading update...';
-            toast.querySelector('.mokha-update-actions').innerHTML = '<div class="mokha-update-progress"><div class="mokha-update-progress-bar" id="progressBar" style="width: 0%"></div></div>';
+            toast.querySelector('.mokha-update-actions').innerHTML =
+                '<div class="mokha-update-progress"><div class="mokha-update-progress-bar" id="progressBar" style="width: 0%"></div></div>';
         });
     });
 
     // Download progress
-    ipcRenderer.on('download-progress', (event, progress) => {
-        console.log('Download progress:', progress.percent + '%');
-        
-        const progressBar = document.getElementById('progressBar');
-        if (progressBar) {
-            progressBar.style.width = progress.percent + '%';
-        }
+    api.onDownloadProgress(function(progress) {
+        var bar = document.getElementById('progressBar');
+        if (bar) bar.style.width = progress.percent + '%';
     });
 
     // Update downloaded
-    ipcRenderer.on('update-downloaded', (event, info) => {
+    api.onUpdateDownloaded(function(info) {
         console.log('Update downloaded:', info);
-        
-        const content = `
-            <button class="mokha-update-close" onclick="this.parentElement.remove()">×</button>
-            <div class="mokha-update-header">
-                <span class="mokha-update-icon">✅</span>
-                <span class="mokha-update-title">Update Ready!</span>
-            </div>
-            <div class="mokha-update-message">
-                Version ${info.version} has been downloaded.<br>
-                Restart the app to install the update.
-            </div>
-            <div class="mokha-update-actions">
-                <button class="mokha-update-btn mokha-update-btn-primary" id="installUpdateBtn">
-                    Restart Now
-                </button>
-                <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest('.mokha-update-toast').remove()">
-                    Later
-                </button>
-            </div>
-        `;
 
-        const toast = showToast(content);
-        
-        toast.querySelector('#installUpdateBtn').addEventListener('click', () => {
-            ipcRenderer.send('install-update');
+        var content =
+            '<button class="mokha-update-close" onclick="this.parentElement.remove()">&times;</button>' +
+            '<div class="mokha-update-header">' +
+            '  <span class="mokha-update-icon">&#9989;</span>' +
+            '  <span class="mokha-update-title">Update Ready!</span>' +
+            '</div>' +
+            '<div class="mokha-update-message">' +
+            '  Version ' + info.version + ' has been downloaded.<br>Restart the app to install.' +
+            '</div>' +
+            '<div class="mokha-update-actions">' +
+            '  <button class="mokha-update-btn mokha-update-btn-primary" id="installUpdateBtn">Restart Now</button>' +
+            '  <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest(\'.mokha-update-toast\').remove()">Later</button>' +
+            '</div>';
+
+        var toast = showToast(content);
+
+        toast.querySelector('#installUpdateBtn').addEventListener('click', function() {
+            api.installUpdate();
         });
     });
 
     // Update error
-    ipcRenderer.on('update-error', (event, error) => {
+    api.onUpdateError(function(error) {
         console.error('Update error:', error);
-        
-        const content = `
-            <button class="mokha-update-close" onclick="this.parentElement.remove()">×</button>
-            <div class="mokha-update-header">
-                <span class="mokha-update-icon">⚠️</span>
-                <span class="mokha-update-title">Update Error</span>
-            </div>
-            <div class="mokha-update-message">
-                Failed to check for updates. Please try again later.
-            </div>
-            <div class="mokha-update-actions">
-                <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest('.mokha-update-toast').remove()">
-                    Close
-                </button>
-            </div>
-        `;
+
+        var content =
+            '<button class="mokha-update-close" onclick="this.parentElement.remove()">&times;</button>' +
+            '<div class="mokha-update-header">' +
+            '  <span class="mokha-update-icon">&#9888;&#65039;</span>' +
+            '  <span class="mokha-update-title">Update Error</span>' +
+            '</div>' +
+            '<div class="mokha-update-message">Failed to check for updates. Please try again later.</div>' +
+            '<div class="mokha-update-actions">' +
+            '  <button class="mokha-update-btn mokha-update-btn-secondary" onclick="this.closest(\'.mokha-update-toast\').remove()">Close</button>' +
+            '</div>';
 
         showToast(content);
     });

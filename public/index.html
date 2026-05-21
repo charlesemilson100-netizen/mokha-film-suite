@@ -8,22 +8,20 @@
       name="description"
       content="MOKHA FILM Suite - Professional AI Film Prompt Builder"
     />
-    <title>MOKHA FILM Suite v2.0</title>
+    <title>MOKHA FILM Suite</title>
+    <style>
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <script>
-      // Load the mokha-suite HTML directly
-      fetch('./mokha-suite-pro.html')
-        .then(r => r.text())
-        .then(html => {
-          document.documentElement.innerHTML = html;
-        })
-        .catch(err => {
-          console.error('Failed to load app:', err);
-          document.body.innerHTML = '<h1>Error loading app</h1>';
-        });
-    </script>
   </body>
 </html>

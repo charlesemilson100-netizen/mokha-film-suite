@@ -205,6 +205,11 @@ function createMenu() {
 
 app.on('ready', createMenu);
 
+// IPC handler for app version
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
 // IPC handlers for file operations
 ipcMain.handle('save-file', async (event, data) => {
   try {
