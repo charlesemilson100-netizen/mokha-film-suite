@@ -10,10 +10,9 @@ const path = require('path');
 const pkgPath = path.join(__dirname, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
-// Parse current version
+// Parse current version and bump patch (e.g. 2.11.0 → 2.11.1)
 const parts = pkg.version.split('.').map(Number);
-parts[1] += 1; // bump minor version (2.0.0 → 2.1.0)
-parts[2] = 0;  // reset patch to 0
+parts[2] += 1;
 const newVersion = parts.join('.');
 
 pkg.version = newVersion;
