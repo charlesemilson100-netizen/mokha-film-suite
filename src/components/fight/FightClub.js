@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../ui/Icon';
-import { FIGHT_BEATS, FIGHT_DURATIONS, FIGHT_LEVELS, FIGHT_SKILLS, FIGHT_STRIKES, FIGHT_STYLES } from '../../data/fightClub';
+import { FIGHT_BEATS, FIGHT_DURATIONS, FIGHT_INITIATORS, FIGHT_LEVELS, FIGHT_RANGES, FIGHT_SKILLS, FIGHT_STRIKES, FIGHT_STYLE_RANGE, FIGHT_STYLES, FIGHT_TEMPOS } from '../../data/fightClub';
 import { buildFightPrompt, draftFromEditorShot } from '../../engine/fightPrompt';
 
 const STORAGE_KEY = 'mokha_fight_projects';
@@ -45,6 +45,9 @@ const freshDraft = () => ({
     outcome: '',
     styleId: 'hand',
     strikeId: 'elbow',
+    range: 'clinch',
+    initiator: 'hero',
+    tempo: 'one',
     beat: 'clash',
     duration: '5s',
     location: '',
@@ -62,6 +65,7 @@ const layerColor = {
     Sound: 'text-emerald-400',
     Frame: 'text-slate-300',
     Geography: 'text-lime-300',
+    Fight: 'text-rose-300',
     Hit: 'text-orange-400',
     Avoid: 'text-red-400'
 };
@@ -167,7 +171,7 @@ export const FightClub = ({ onClose, onApply, onUpdateShot, incoming, editorShot
         event.stopPropagation();
         setMenu({ x: event.clientX, y: event.clientY, items });
     };
-    const useStyle = (item) => patch({ styleId: item.id, strikeId: (FIGHT_STRIKES[item.id] || [])[0]?.id });
+    const useStyle = (item) => patch({ styleId: item.id, strikeId: (FIGHT_STRIKES[item.id] || [])[0]?.id, range: FIGHT_STYLE_RANGE[item.id] || 'punching' });
     const bringEditor = () => {
         if (!editorShot?.shot) return;
         const imported = draftFromEditorShot(editorShot.shot, editorShot);
@@ -220,7 +224,7 @@ export const FightClub = ({ onClose, onApply, onUpdateShot, incoming, editorShot
                                 const look = STYLE_LOOK[item.id] || STYLE_LOOK.hand;
                                 const selected = draft.styleId === item.id;
                                 return (
-                                    <button key={item.id} onClick={() => useStyle(item)} onDoubleClick={() => patch({ styleId: item.id, strikeId: (FIGHT_STRIKES[item.id] || [])[0]?.id, projectName: draft.projectName === 'New fight' ? `${item.name} fight` : draft.projectName })} onContextMenu={(event) => openMenu(event, [
+                                    <button key={item.id} onClick={() => useStyle(item)} onDoubleClick={() => patch({ styleId: item.id, strikeId: (FIGHT_STRIKES[item.id] || [])[0]?.id, range: FIGHT_STYLE_RANGE[item.id] || 'punching', projectName: draft.projectName === 'New fight' ? `${item.name} fight` : draft.projectName })} onContextMenu={(event) => openMenu(event, [
                                         { label: 'Use this style', icon: 'Check', run: () => useStyle(item) },
                                         { label: 'Name the fight after it', icon: 'Edit', run: () => patch({ styleId: item.id, strikeId: (FIGHT_STRIKES[item.id] || [])[0]?.id, projectName: `${item.name} fight` }) },
                                         { label: 'Copy its secret', icon: 'Copy', run: () => navigator.clipboard.writeText(item.sauce) }
@@ -279,6 +283,23 @@ export const FightClub = ({ onClose, onApply, onUpdateShot, incoming, editorShot
                             ))}
                         </div>
                         <button onClick={() => patch({ beat: 'exchange' })} className={`w-full text-left rounded-lg border px-2 py-1.5 text-[10px] font-bold ${press} ${draft.beat === 'exchange' ? 'border-primary bg-primary/15' : 'border-border-light dark:border-border-dark'}`}>Full exchange. Four shots: setup, clash, impact, aftermath.</button>
+                        <div className="grid grid-cols-3 gap-2">
+                            <label className="text-[10px] font-bold uppercase">Range
+                                <select value={draft.range || FIGHT_STYLE_RANGE[draft.styleId] || 'punching'} onChange={e => patch({ range: e.target.value })} className={fieldClass}>
+                                    {FIGHT_RANGES.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                </select>
+                            </label>
+                            <label className="text-[10px] font-bold uppercase">Who moves
+                                <select value={draft.initiator || 'hero'} onChange={e => patch({ initiator: e.target.value })} className={fieldClass}>
+                                    {FIGHT_INITIATORS.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                </select>
+                            </label>
+                            <label className="text-[10px] font-bold uppercase">Tempo
+                                <select value={draft.tempo || 'one'} onChange={e => patch({ tempo: e.target.value })} className={fieldClass}>
+                                    {FIGHT_TEMPOS.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                </select>
+                            </label>
+                        </div>
                         <label className="block text-[10px] font-bold uppercase"><Icon name="AlignLeft" size={11} className="inline mr-1" />Fight note
                             <textarea value={draft.note} onChange={e => patch({ note: e.target.value })} placeholder="Write the beat. Use @Name for a character you already have." className={`${fieldClass} h-16`} />
                         </label>

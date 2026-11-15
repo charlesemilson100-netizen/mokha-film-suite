@@ -9,16 +9,49 @@ export const FIGHT_BEATS = [
 export const FIGHT_DURATIONS = ['5s', '8s', '10s', '12s', '15s'];
 
 export const FIGHT_SKILLS = [
-    { id: 'untrained', name: 'Untrained', level: 'weak', line: 'Untrained. Weight on the heels, arms wide, swings from the shoulder.' },
-    { id: 'street', name: 'Street fight', level: 'trained', line: 'Street fighting. Clinch, dirty hands, uneven footing, no kata.' },
-    { id: 'box', name: 'Boxing', level: 'strong', line: 'Boxing. Snap jab, guard stays up, feet reset after every punch.' },
-    { id: 'karate', name: 'Karate', level: 'strong', line: 'Karate. Chamber, hip turn, full extension, then the foot comes back.' },
-    { id: 'kungfu', name: 'Kung fu', level: 'strong', line: 'Kung fu. The technique is readable. Weight returns to the floor.' },
-    { id: 'hand', name: 'Hand to hand', level: 'trained', line: 'Hand to hand. Short punches, elbows in the clinch, one clean level change.' },
-    { id: 'gun', name: 'Gun fight', level: 'trained', line: 'Gun handling. Eyes on the sight, one shot or one reload, real recoil.' },
-    { id: 'super', name: 'Superhuman', level: 'elite', line: 'Superhuman power with a human center of balance. One environment hit, then weight comes down.' },
-    { id: 'arena', name: 'Arena special', level: 'elite', line: 'Stylized arena fighting. One special strike, silhouette stays readable.' }
+    { id: 'untrained', name: 'Untrained', level: 'weak', stance: 'square, weight on the heels', range: 'punching', tell: 'the shoulder lifts before the arm', limit: 'They swing from the shoulder and do not chamber a kick.', line: 'Untrained. Weight on the heels, arms wide, swings from the shoulder.' },
+    { id: 'street', name: 'Street fight', level: 'trained', stance: 'bladed and low', range: 'clinch', tell: 'the lead hand drops to grab', limit: 'No kata and no clean gym footwork.', line: 'Street fighting. Clinch, dirty hands, uneven footing, no kata.' },
+    { id: 'box', name: 'Boxing', level: 'strong', stance: 'orthodox, lead hand up', range: 'punching', tell: 'the rear heel', limit: 'They do not throw a kick.', line: 'Boxing. Snap jab, guard stays up, feet reset after every punch.' },
+    { id: 'karate', name: 'Karate', level: 'strong', stance: 'front stance, hip toward the line', range: 'kicking', tell: 'the chambered knee', limit: 'The foot returns. They do not swing a haymaker.', line: 'Karate. Chamber, hip turn, full extension, then the foot comes back.' },
+    { id: 'kungfu', name: 'Kung fu', level: 'strong', stance: 'weight on one leg', range: 'kicking', tell: 'the waist turns first', limit: 'The technique stays readable. They do not flail.', line: 'Kung fu. The technique is readable. Weight returns to the floor.' },
+    { id: 'hand', name: 'Hand to hand', level: 'trained', stance: 'chin tucked, elbows in', range: 'clinch', tell: 'a short level change', limit: 'One strike. No spinning kick.', line: 'Hand to hand. Short punches, elbows in the clinch, one clean level change.' },
+    { id: 'gun', name: 'Gun fight', level: 'trained', stance: 'behind cover, eyes on the sight', range: 'long', tell: 'the support hand seats', limit: 'One shot or one reload. No spray.', line: 'Gun handling. Eyes on the sight, one shot or one reload, real recoil.' },
+    { id: 'super', name: 'Superhuman', level: 'elite', stance: 'human feet under a larger power', range: 'long', tell: 'the knees bend before the launch', limit: 'One environment hit, then the weight comes down.', line: 'Superhuman power with a human center of balance. One environment hit, then weight comes down.' },
+    { id: 'arena', name: 'Arena special', level: 'elite', stance: 'wide and readable', range: 'kicking', tell: 'the silhouette loads on one side', limit: 'One special strike. The silhouette stays readable.', line: 'Stylized arena fighting. One special strike, silhouette stays readable.' }
 ];
+
+export const FIGHT_RANGES = [
+    { id: 'long', name: 'Long', line: 'They start beyond reach. One step closes it.' },
+    { id: 'kicking', name: 'Kicking', line: 'A full leg length apart. The foot can reach. The hands cannot.' },
+    { id: 'punching', name: 'Punching', line: 'Lead-hand distance. One step and the fist arrives.' },
+    { id: 'clinch', name: 'Clinch', line: 'Bodies are already touching. Elbows and knees, not a swing.' }
+];
+
+export const FIGHT_TEMPOS = [
+    { id: 'one', name: 'One count', line: 'One count, then contact, then the feet find their marks.' },
+    { id: 'snap', name: 'Snap', line: 'No wind-up. Contact, then a short recovery.' },
+    { id: 'measured', name: 'Measured', line: 'The tell is visible. Contact. A full recovery before anyone moves again.' }
+];
+
+export const FIGHT_INITIATORS = [
+    { id: 'hero', name: 'Hero steps in' },
+    { id: 'threat', name: 'Threat steps in' }
+];
+
+export const FIGHT_STYLE_RANGE = {
+    hand: 'clinch',
+    boxing: 'punching',
+    karate: 'kicking',
+    kungfu: 'kicking',
+    superhero: 'long',
+    alien: 'long',
+    hero: 'punching',
+    women: 'punching',
+    natural: 'clinch',
+    gun: 'long',
+    street: 'clinch',
+    arena: 'kicking'
+};
 
 export const FIGHT_LEVELS = [
     { id: 'weak', name: 'Weak' },
