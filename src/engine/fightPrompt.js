@@ -1,5 +1,5 @@
 import { cleanPromptText } from './prompt.js';
-import { FIGHT_SKILLS, FIGHT_STYLES } from '../data/fightClub.js';
+import { FIGHT_LANDMARKS, FIGHT_ROOMS, FIGHT_SKILLS, FIGHT_STRIKES, FIGHT_STYLES } from '../data/fightClub.js';
 
 const levelLine = {
     weak: 'Weak. The first clean hit wobbles them.',
@@ -39,22 +39,51 @@ export const describeFighter = (fighter) => {
     return `${names.join(', ')}. ${role}. ${skillLine(fighter)} ${dressLine(fighter)}`.replace(/\s+/g, ' ').trim();
 };
 
-const beatAction = (style, draft) => {
+export const resolveStrike = (styleId, strikeId) => {
+    const list = FIGHT_STRIKES[styleId] || FIGHT_STRIKES.hand;
+    return list.find(item => item.id === strikeId) || list[0];
+};
+
+const sides = (draft) => {
     const hero = fighterNames(draft.fighters.find(f => f.role === 'protagonist') || draft.fighters[0] || { name: 'the fighter', role: 'protagonist' })[0];
     const other = draft.fighters.find(f => f.role !== 'protagonist');
     const foe = other ? fighterNames(other)[0] : 'the other fighter';
+    return { hero, foe };
+};
+
+const strikeSentence = (hero, foe, strike) => `${hero}'s ${strike.limb} ${strike.verb} ${strike.direction} into ${foe}'s ${strike.target}. ${strike.result}`;
+
+const beatAction = (style, draft, strike) => {
+    const { hero, foe } = sides(draft);
     const place = cleanPromptText(draft.location);
     const where = place ? ` in ${place}` : '';
-    if (draft.beat === 'setup') return `${hero} and ${foe} face each other${where}. No strike yet. The distance is readable.`;
-    if (draft.beat === 'clash') return `${hero} commits one named strike at ${foe}${where}. ${foe} answers once.`;
-    if (draft.beat === 'impact') return `The strike lands on ${foe}. Impact, then the body reacts. One hit only.`;
-    if (draft.beat === 'aftermath') return `${hero} is still up. ${foe} shows what the hit cost. Hold on the result.`;
+    if (draft.beat === 'setup') return `${hero} is screen left and ${foe} is screen right${where}. No strike yet. The distance is readable.`;
+    if (draft.beat === 'clash') return `${strikeSentence(hero, foe, strike)} ${foe} has not answered yet.`;
+    if (draft.beat === 'impact') return `${strikeSentence(hero, foe, strike)} One hit only.`;
+    if (draft.beat === 'aftermath') return `${hero} is still up. ${foe} still shows ${strike.damage}. No new injury.`;
     return [
-        `1. Setup. ${hero} and ${foe} hold their ground${where}. Camera ${style.movement}.`,
-        `2. Clash. ${hero} throws one strike. Camera stays on the attacking side.`,
-        `3. Impact. Contact, then ${foe} reacts. Cut on the hit.`,
-        `4. Aftermath. Show who is standing. Camera eases wide.`
+        `1. Setup. ${hero} is screen left and ${foe} is screen right${where}. No strike yet.`,
+        `2. Clash. ${strikeSentence(hero, foe, strike)}`,
+        `3. Impact. The same hit lands. ${foe} still shows ${strike.damage}.`,
+        `4. Aftermath. ${foe} still shows ${strike.damage}. No new injury.`
     ].join(' ');
+};
+
+const geographyLine = (style, draft) => {
+    const { hero, foe } = sides(draft);
+    const place = cleanPromptText(draft.location);
+    const landmark = place ? `the edge of ${place}` : (FIGHT_LANDMARKS[style.id] || 'the nearest wall');
+    return `${hero} is screen left, facing right. ${foe} is screen right, facing left. The camera stays on ${hero}'s side of the line. Landmark: ${landmark}.`;
+};
+
+const hitLine = (style, strike) => `${strike.contact}. ${strike.damage}. ${FIGHT_ROOMS[style.id] || 'the room takes the hit'}.`;
+
+const avoidLine = (style) => {
+    const parts = [style.avoid];
+    if (!/slow motion/i.test(style.avoid)) parts.push('slow motion');
+    if (!/extra limbs/i.test(style.avoid)) parts.push('extra limbs');
+    if (!/pass(?:es)? through/i.test(style.avoid)) parts.push('a fist that passes through the body');
+    return parts.filter(Boolean).join('. ');
 };
 
 const textMentions = (text, name) => {
@@ -79,20 +108,23 @@ export const buildFightPrompt = (draft, libraries = {}) => {
             mentioned.push(`${cleanPromptText(loc.name)} at the location`);
         }
     });
+    const strike = resolveStrike(style.id, draft.strikeId);
     const layers = [];
     const cast = [...fighters.map(describeFighter), ...mentioned].filter(Boolean);
     if (cast.length) layers.push(`Characters: ${cast.join(' ')}`);
     if (place) layers.push(`Location: ${place}`);
-    const action = `${beatAction(style, { ...draft, fighters })} ${style.sauce}${note ? ` ${note}` : ''}`;
+    layers.push(`Geography: ${geographyLine(style, { ...draft, fighters })}`);
+    const action = `${beatAction(style, { ...draft, fighters }, strike)} ${style.sauce}${note ? ` ${note}` : ''}`;
     layers.push(`Action: ${cleanPromptText(action)}`);
     const spoken = (draft.lines || []).filter(line => cleanPromptText(line.text));
     if (spoken.length && (draft.beat === 'clash' || draft.beat === 'impact' || draft.beat === 'exchange')) {
         layers.push(`Dialogue: ${spoken.map(line => `${cleanPromptText(line.speaker) || 'Fighter'}: ${cleanPromptText(line.text)}`).join('. ')}`);
     }
+    if (draft.beat !== 'setup') layers.push(`Hit: ${hitLine(style, strike)}`);
     layers.push(`Camera: ${style.position}. ${style.camera}. ${style.lens}. ${style.movement}. ${draft.duration || '5s'}. ${style.cut}`);
     layers.push(`Sound: ${style.sfx}`);
     layers.push('Frame: 16:9');
-    layers.push(`Avoid: ${style.avoid}`);
+    layers.push(`Avoid: ${avoidLine(style)}`);
     return layers.join('\n\n');
 };
 
