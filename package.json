@@ -12,17 +12,17 @@
   },
   "scripts": {
     "react-start": "react-scripts start",
-    "react-build": "echo 'Skipping React - loading HTML directly'",
+    "react-build": "react-scripts build",
     "react-test": "react-scripts test",
     "react-eject": "react-scripts eject",
     "electron-start": "electron .",
     "electron-dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-build": "npm run react-build && electron-builder",
-    "build": "node bump-version.js && npm run react-build && npm run electron-build",
-    "build-win": "node bump-version.js && npm run react-build && electron-builder --win",
-    "build-mac": "node bump-version.js && npm run react-build && electron-builder --mac",
-    "build-linux": "node bump-version.js && npm run react-build && electron-builder --linux",
-    "build-all": "node bump-version.js && npm run react-build && electron-builder -mwl",
+    "build": "node scripts/bump-version.js && npm run react-build && npm run electron-build",
+    "build-win": "node scripts/bump-version.js && npm run react-build && electron-builder --win",
+    "build-mac": "node scripts/bump-version.js && npm run react-build && electron-builder --mac",
+    "build-linux": "node scripts/bump-version.js && npm run react-build && electron-builder --linux",
+    "build-all": "node scripts/bump-version.js && npm run react-build && electron-builder -mwl",
     "dist": "npm run build"
   },
   "dependencies": {
@@ -43,6 +43,7 @@
     "appId": "com.mokha.filmsuit",
     "productName": "MOKHA FILM Suite",
     "files": [
+      "build/**/*",
       "public/**/*",
       "electron/**/*",
       "node_modules/**/*"
