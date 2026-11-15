@@ -25,7 +25,7 @@ import { APP_VERSION } from './data/version';
 import { DeepBrain, FastBrain } from './engine/directorBrain';
 import { ImageBridge, VideoBridge } from './engine/llm';
 import { FightClub } from './components/fight/FightClub';
-import { buildFightScene, fighterNames } from './engine/fightPrompt';
+import { buildFightPrompt, buildFightScene, draftFromEditorShot, fighterNames } from './engine/fightPrompt';
 import { LocalAIEngine, generateChainDeltaPrompt, generatePromptText, magicEnhanceSubject, shotifyPrompt } from './engine/prompt';
 import { checkStorageQuota } from './engine/storage';
 
@@ -244,6 +244,7 @@ export default function App() {
           const [showGlobalVoiceModal, setShowGlobalVoiceModal] = useState(false);
           const [showDirectorMenu, setShowDirectorMenu] = useState(false);
           const [showFightClub, setShowFightClub] = useState(false);
+          const [fightHandoff, setFightHandoff] = useState(null);
           const [fightDraft, setFightDraft] = useState(null);
           const skipFightClear = useRef(false);
 
@@ -906,8 +907,59 @@ export default function App() {
               finally { setIsGenerating(false); }
           };
 
+          const openFightClub = (shotIndex) => {
+              const fromShot = Number.isInteger(shotIndex);
+              const index = fromShot ? shotIndex : (editingIndex >= 0 ? editingIndex : null);
+              const shot = index !== null && shots[index]
+                  ? shots[index]
+                  : { id: '', subject, dialogues, selections, fightDraft: null };
+              const hasWords = Boolean((shot.subject || '').trim() || shot.fightDraft || (shot.dialogues || []).some(line => (line?.text || '').trim()));
+              setFightHandoff({
+                  token: Date.now(),
+                  draft: (fromShot || hasWords) ? draftFromEditorShot(shot, { index: index ?? -1, sceneId: activeSceneId, label: index !== null && index >= 0 ? `Shot ${index + 1}` : 'This prompt' }) : null
+              });
+              setShowFightClub(true);
+          };
+          const updateShotFromFight = (draft) => {
+              const promptText = buildFightPrompt(draft, { characters: globalCharacters, locations: globalLocations });
+              const single = buildFightScene({ ...draft, beat: draft.beat === 'exchange' ? 'impact' : (draft.beat || 'clash') });
+              const one = single.shots[0];
+              const action = (promptText.split('\n\n').find(line => line.startsWith('Action:')) || '').replace(/^Action:\s*/, '');
+              const sourceId = draft.source?.shotId;
+              if (sourceId) {
+                  updateActiveShots(prev => prev.map(shot => shot.id === sourceId ? {
+                      ...shot,
+                      subject: action || shot.subject,
+                      selections: { ...shot.selections, ...one.selections },
+                      sfx: one.sfx,
+                      dialogues: one.dialogues,
+                      tags: [...new Set([...(shot.tags || []), 'fight'])],
+                      customPromptOverride: promptText,
+                      fightDraft: { ...draft, lastAction: action, source: { ...draft.source, shotId: shot.id } }
+                  } : shot));
+                  if (editingIndex >= 0 && shots[editingIndex]?.id === sourceId) {
+                      setSubject(action || shots[editingIndex].subject);
+                      setDialogues(one.dialogues);
+                      setSelections(prev => ({ ...prev, ...one.selections }));
+                      setSfx(one.sfx);
+                      setFightDraft({ ...draft, source: { ...draft.source, shotId: sourceId } });
+                  }
+                  addToast(`${draft.source?.label || 'The shot'} now uses this fight.`, 'success');
+                  return;
+              }
+              setSubject(action || subject);
+              setDialogues(one.dialogues);
+              setSelections(prev => ({ ...prev, ...one.selections }));
+              setSfx(one.sfx);
+              setFightDraft(draft);
+              addToast('The open prompt now uses this fight.', 'success');
+          };
           const applyFightClub = (draft) => {
               const scene = buildFightScene(draft);
+              scene.shots = scene.shots.map((shot, index) => ({
+                  ...shot,
+                  fightDraft: { ...draft, lastAction: shot.subject, source: { sceneId: scene.id, shotId: shot.id, shotIndex: index, label: `${scene.name} ${index + 1}` } }
+              }));
               updateActiveProjectScenes(prev => [...prev, scene]);
               setActiveSceneId(scene.id);
               setCurrentView('editor');
@@ -3512,7 +3564,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                             <button onClick={handleRedo} disabled={historyFuture.length === 0} className={`p-1.5 transition-all ${historyFuture.length > 0 ? 'text-primary hover:bg-primary/10 cursor-pointer' : 'text-textMuted-light dark:text-textMuted-dark opacity-50 cursor-not-allowed'}`} title="Redo (Ctrl+Y)"><Icon name="Redo" size={14} /></button>
                         </div>
                         <div className="relative">
-                            <button onClick={() => setShowFightClub(true)} className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-lg transition-all border border-red-500/30 flex items-center space-x-1.5 font-bold shadow-sm">
+                            <button onClick={() => openFightClub()} className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-lg transition-all border border-red-500/30 flex items-center space-x-1.5 font-bold shadow-sm active:scale-95">
                               <Icon name="Activity" size={12} /><span className="hidden xl:inline">Fight Club</span>
                             </button>
                             <button onClick={() => setShowDirectorMenu(!showDirectorMenu)} className="text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-lg transition-all border border-amber-500/30 flex items-center space-x-1.5 font-bold shadow-sm">
@@ -4098,6 +4150,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                                              );
                                          })()}
                                          {/* Feature 5 — Quick Copy */}
+                                         <button onClick={() => openFightClub(editingIndex >= 0 ? editingIndex : undefined)} className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 active:scale-95 inline-flex items-center gap-1" title="Send this prompt to Fight Club"><Icon name="Activity" size={10} />Fight</button>
                                          <QuickCopyBtn text={prompt} />
                                          {/* Feature 10 — Aspect Ratio Preview */}
                                          {selections?.aspectRatio && <AspectRatioPreview ratio={selections.aspectRatio} shotType={selections.shotType} lighting={selections.lighting}/>}
@@ -4250,6 +4303,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                                                               </div>
                                                               <div className="flex flex-col space-y-1.5 shrink-0 bg-input-light dark:bg-input-dark p-1 rounded-lg border border-border-light dark:border-border-dark">
                                                                   <button onClick={() => { if(s.locked) return; handleEditShot(i); }} className={`p-1.5 rounded transition-colors ${s.locked ? 'opacity-30 cursor-not-allowed' : ''} ${editingIndex === i ? 'text-primary bg-primary/20' : 'text-textMuted-light dark:text-textMuted-dark hover:text-primary hover:bg-base-light dark:hover:bg-border-dark'}`} title={s.locked ? 'Unlock to edit' : 'Edit'}><Icon name="Edit" size={14} /></button>
+                                                                  <button onClick={() => { if(s.locked) return; openFightClub(i); }} className={`p-1.5 rounded transition-colors ${s.locked ? 'opacity-30 cursor-not-allowed' : 'text-textMuted-light dark:text-textMuted-dark hover:text-red-400 hover:bg-red-500/10'}`} title={s.locked ? 'Unlock to edit in Fight Club' : 'Edit in Fight Club'}><Icon name="Activity" size={14} /></button>
                                                                   <button onClick={() => { if(s.locked) return; handleDuplicateShot(i); }} className={`p-1.5 rounded transition-colors ${s.locked ? 'opacity-30 cursor-not-allowed' : 'text-textMuted-light dark:text-textMuted-dark hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10'}`} title={s.locked ? 'Unlock to duplicate' : 'Duplicate Shot'}><Icon name="Copy" size={14} /></button>
                                                                   <button onClick={() => toggleShotLock(i)} className={`p-1.5 rounded transition-colors ${s.locked ? 'text-amber-500 bg-amber-500/10' : 'text-textMuted-light dark:text-textMuted-dark hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'}`} title={s.locked ? 'Unlock shot' : 'Lock shot'}><Icon name="Lock" size={14} /></button>
                                                                   <button onClick={() => { if(s.locked) { addToast('Shot is locked. Unlock it first.', 'warning'); return; } handleRemoveShot(i); }} className={`p-1.5 rounded transition-colors ${s.locked ? 'opacity-30 cursor-not-allowed' : 'text-textMuted-light dark:text-textMuted-dark hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10'}`}><Icon name="Trash2" size={14} /></button>
@@ -6006,7 +6060,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                )}
 
                {/* Performance Settings Modal */}
-               {showFightClub && <FightClub characters={globalCharacters} locations={globalLocations} onClose={() => setShowFightClub(false)} onApply={applyFightClub} />}
+               {showFightClub && <FightClub characters={globalCharacters} locations={globalLocations} incoming={fightHandoff} editorShot={editingIndex >= 0 && shots[editingIndex] ? { shot: shots[editingIndex], index: editingIndex, sceneId: activeSceneId, label: `Shot ${editingIndex + 1}` } : ((subject || '').trim() ? { shot: { id: '', subject, dialogues, selections }, index: -1, sceneId: activeSceneId, label: 'This prompt' } : null)} onClose={() => setShowFightClub(false)} onApply={applyFightClub} onUpdateShot={updateShotFromFight} />}
                {showSettings && (
                    <PerformanceSettingsModal
                        settings={perfSettings}

@@ -114,7 +114,10 @@ export const buildFightPrompt = (draft, libraries = {}) => {
     if (cast.length) layers.push(`Characters: ${cast.join(' ')}`);
     if (place) layers.push(`Location: ${place}`);
     layers.push(`Geography: ${geographyLine(style, { ...draft, fighters })}`);
-    const action = `${beatAction(style, { ...draft, fighters }, strike)} ${style.sauce}${note ? ` ${note}` : ''}`;
+    const stakes = cleanPromptText(draft.stakes);
+    const outcome = cleanPromptText(draft.outcome);
+    const detail = [stakes && `Stakes: ${stakes}.`, outcome && `Outcome: ${outcome}.`].filter(Boolean).join(' ');
+    const action = `${beatAction(style, { ...draft, fighters }, strike)} ${style.sauce}${note ? ` ${note}` : ''}${detail ? ` ${detail}` : ''}`;
     layers.push(`Action: ${cleanPromptText(action)}`);
     const spoken = (draft.lines || []).filter(line => cleanPromptText(line.text));
     if (spoken.length && (draft.beat === 'clash' || draft.beat === 'impact' || draft.beat === 'exchange')) {
@@ -126,6 +129,38 @@ export const buildFightPrompt = (draft, libraries = {}) => {
     layers.push('Frame: 16:9');
     layers.push(`Avoid: ${avoidLine(style)}`);
     return layers.join('\n\n');
+};
+
+export const draftFromEditorShot = (shot, meta = {}) => {
+    const saved = shot?.fightDraft && typeof shot.fightDraft === 'object' ? shot.fightDraft : {};
+    const spoken = (shot?.dialogues || []).filter(line => cleanPromptText(line?.text));
+    const lines = spoken.length
+        ? spoken.map((line, index) => ({ id: `line_${shot?.id || 'open'}_${index}`, speaker: line.character || '', text: line.text }))
+        : (saved.lines || []);
+    const index = Number.isInteger(meta.index) ? meta.index : -1;
+    const subject = cleanPromptText(shot?.subject);
+    const note = saved.lastAction && subject === saved.lastAction ? (saved.note || '') : (subject || saved.note || '');
+    return {
+        ...saved,
+        projectName: saved.projectName || (index >= 0 ? `Shot ${index + 1} fight` : 'This prompt'),
+        description: saved.description || '',
+        stakes: saved.stakes || '',
+        outcome: saved.outcome || '',
+        styleId: saved.styleId || 'hand',
+        strikeId: saved.strikeId || 'elbow',
+        beat: saved.beat || 'clash',
+        duration: shot?.selections?.duration || saved.duration || '5s',
+        location: saved.location || '',
+        note,
+        lines,
+        fighters: Array.isArray(saved.fighters) && saved.fighters.length ? saved.fighters : undefined,
+        source: {
+            sceneId: meta.sceneId || saved.source?.sceneId || '',
+            shotId: shot?.id || '',
+            shotIndex: index,
+            label: meta.label || (index >= 0 ? `Shot ${index + 1}` : 'This prompt')
+        }
+    };
 };
 
 export const buildFightScene = (draft) => {
