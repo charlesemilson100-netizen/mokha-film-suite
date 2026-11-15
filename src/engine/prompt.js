@@ -1,5 +1,3 @@
-import { PLATFORM_PROMPT_PROFILES } from '../data/presets';
-
 export const CorrectorEngine = {
             frenchGenders: {
                 'maison': 'f', 'voiture': 'f', 'table': 'f', 'chaise': 'f', 'lumière': 'f', 'nuit': 'f', 'ville': 'f', 'forêt': 'f', 'pluie': 'f', 'manman': 'f', 'femme': 'f', 'fille': 'f', 'mère': 'f', 'soeur': 'f', 'tante': 'f', 'eau': 'f', 'terre': 'f', 'mer': 'f', 'fleur': 'f', 'chanson': 'f', 'idée': 'f', 'joie': 'f', 'peur': 'f', 'fenêtre': 'f', 'porte': 'f',
@@ -347,251 +345,200 @@ export const CorrectorEngine = {
             }
         };
 
-export const generatePromptText = (subj, sel, sfxStr, bgmStr, dialArr, mode = 'video', aiModel = 'Nano Banana 2', myStyle = null, globalCharacters = [], globalLocations = [], globalVoiceStyles = [], negPrompt = "", videoPlatform = 'Standard') => {
-            let subjectText = CorrectorEngine.correctText(subj.trim() || "[SUBJECT/ACTION]");
+const JUNK_MARKS = /[`'"“”]{2,}|[=~*_#]{2,}|-{2,}|\*{2,}|={2,}|\.{2,}/g;
 
-            if (globalLocations?.length) {
-                globalLocations.forEach(loc => {
-                    if (!loc.name) return;
-                    const regex = new RegExp(`(?:@)?\\b${loc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                    if (regex.test(subjectText)) {
-                        const formattedName = `@${loc.name.replace(/\s+/g, '')}`;
-                        subjectText = subjectText.replace(regex, loc.description && !subjectText.includes(`[Location: ${loc.description}]`) ? `${formattedName} [Location: ${loc.description}]` : formattedName);
-                    }
-                });
+export const cleanPromptText = (value) => String(value || '')
+    .replace(JUNK_MARKS, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/([,;:]){2,}/g, '$1')
+    .replace(/^[\s,;:.-]+|[\s,;:-]+$/g, '')
+    .trim();
+
+const escapeName = (name) => String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const textMentions = (text, name) => {
+    if (!name || !text) return false;
+    return new RegExp(`(?:@)?\\b${escapeName(name)}\\b`, 'i').test(text);
+};
+
+const uniqueJoin = (items) => {
+    const seen = [];
+    items.map(cleanPromptText).filter(Boolean).forEach(item => {
+        if (!seen.some(existing => existing.toLowerCase() === item.toLowerCase())) seen.push(item);
+    });
+    return seen;
+};
+
+const characterDetail = (char) => uniqueJoin([char?.role, char?.appearance]).join(', ');
+
+const stripInlineDetails = (text) => cleanPromptText(
+    String(text || '')
+        .replace(/\[[^\]]*(?:Role|Location|Voice|Reaction|Event)[^\]]*\]/gi, ' ')
+        .replace(/@/g, '')
+);
+
+const aspectLabel = (value) => cleanPromptText(String(value || '').replace(/--\s*ar/gi, '').replace(/^ar\s*/i, ''));
+
+const dialogueLines = (dialArr, placement, voiceStyles = []) => (dialArr || [])
+    .filter(line => (line?.placement || 'after') === placement)
+    .map(line => {
+        const who = cleanPromptText(line.character);
+        const mood = cleanPromptText(line.mood);
+        const spoken = cleanPromptText(line.text);
+        const voice = cleanPromptText(line.voiceStyle);
+        const voiceDetail = voice ? cleanPromptText((voiceStyles || []).find(item => item.name === line.voiceStyle)?.description) : '';
+        if (!who && !spoken) return '';
+        const speaker = [who, mood].filter(Boolean).join(', ');
+        const heard = voice ? `${voice}${voiceDetail ? `, ${voiceDetail}` : ''}` : '';
+        const body = [spoken, heard ? `voice ${heard}` : ''].filter(Boolean).join(', ');
+        if (!body) return speaker;
+        return speaker ? `${speaker}: ${body}` : body;
+    })
+    .filter(Boolean);
+
+const cameraBitsFor = (sel, mode, platform, sfxStr, bgmStr, rules) => {
+    const short = platform === 'Seedance';
+    const bits = [];
+    const push = (value) => {
+        const clean = cleanPromptText(value);
+        if (clean && !bits.some(bit => bit.toLowerCase() === clean.toLowerCase())) bits.push(clean);
+    };
+    push(sel.shotType);
+    if (!short) {
+        push(sel.shotStyle);
+        push(sel.camera);
+        push(sel.lens);
+        push(sel.aperture);
+        push(sel.angle);
+    }
+    push(sel.lighting);
+    if (mode === 'video') {
+        push(sel.movement);
+        push(sel.actionSpeed);
+        push(sel.duration);
+        if (sel.transition && sel.transition !== 'None') push(sel.transition);
+    }
+    if (!short && sel.filmStock) push(String(sel.filmStock).split(',')[0]);
+    if (mode === 'video') {
+        const audio = [sfxStr, bgmStr].map(cleanPromptText).filter(Boolean);
+        if (audio.length) push(`Audio ${audio.join(', ')}`);
+    }
+    const ruleText = uniqueJoin((rules || []).map(rule => typeof rule === 'string' ? rule : (rule?.text || rule?.name))).join('. ');
+    if (ruleText) bits.push(ruleText);
+    return bits;
+};
+
+export const generatePromptText = (subj, sel = {}, sfxStr, bgmStr, dialArr, mode = 'video', aiModel = 'Nano Banana 2', myStyle = null, globalCharacters = [], globalLocations = [], globalVoiceStyles = [], negPrompt = '', videoPlatform = 'Standard', extras = {}) => {
+            const source = cleanPromptText(CorrectorEngine.correctText(subj || ''));
+            const platform = videoPlatform === 'GPT V2' || aiModel === 'GPT V2' || aiModel === 'GPT 2.6' ? (videoPlatform === 'Seedance' ? 'Seedance' : videoPlatform) : videoPlatform;
+            const rules = extras.directorRules || [];
+            const compact = Boolean(extras.compact) || platform === 'Seedance';
+
+            const usedChars = [];
+            (globalCharacters || []).forEach(char => {
+                if (!char?.name) return;
+                const speaks = (dialArr || []).some(line => cleanPromptText(line?.character).toLowerCase() === char.name.toLowerCase());
+                if (!textMentions(source, char.name) && !speaks) return;
+                const detail = characterDetail(char);
+                usedChars.push(detail ? `${cleanPromptText(char.name)}, ${detail}` : cleanPromptText(char.name));
+            });
+            (dialArr || []).forEach(line => {
+                const name = cleanPromptText(line?.character);
+                if (!name) return;
+                if (!usedChars.some(item => item.toLowerCase() === name.toLowerCase() || item.toLowerCase().startsWith(name.toLowerCase() + ','))) usedChars.push(name);
+            });
+
+            const usedLocs = [];
+            (globalLocations || []).forEach(loc => {
+                if (!loc?.name || !textMentions(source, loc.name)) return;
+                const detail = cleanPromptText(loc.description);
+                usedLocs.push(detail ? `${cleanPromptText(loc.name)}, ${detail}` : cleanPromptText(loc.name));
+            });
+
+            let action = stripInlineDetails(source);
+            uniqueJoin([...usedChars, ...usedLocs]).forEach(label => {
+                const detail = label.split(',').slice(1).join(',').trim();
+                if (detail.length > 2) action = action.replace(new RegExp(escapeName(detail), 'ig'), ' ');
+            });
+            action = cleanPromptText(action);
+            if (myStyle?.customModifiers && aiModel === 'MY STYLE') {
+                const extra = cleanPromptText(myStyle.customModifiers);
+                if (extra && !action.toLowerCase().includes(extra.toLowerCase())) action = cleanPromptText(`${action} ${extra}`);
             }
 
-            if (globalCharacters?.length) {
-                globalCharacters.forEach(char => {
-                    if (!char.name) return;
-                    const regex = new RegExp(`(?:@)?\\b${char.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                    if (regex.test(subjectText)) {
-                        const formattedName = `@${char.name.replace(/\s+/g, '')}`;
-                        const appStr = `[Role: ${char.role || 'Character'}, ${char.appearance}]`;
-                        subjectText = subjectText.replace(regex, char.appearance && !subjectText.includes(appStr) ? `${formattedName} ${appStr}` : formattedName);
-                    }
-                });
-            }
-            subjectText = subjectText.replace(/@([A-Za-z0-9_-\s]+)/g, (match, name) => '@' + name.replace(/\s+/g, ''));
-            
-            let dofStr = "";
-            if (sel.aperture) {
-                if (['f/1.2', 'f/1.4'].includes(sel.aperture)) dofStr = "extreme shallow depth of field, creamy bokeh";
-                else if (['f/2.0', 'f/2.8'].includes(sel.aperture)) dofStr = "shallow depth of field";
-                else if (['f/4.0', 'f/5.6'].includes(sel.aperture)) dofStr = "moderate depth of field";
-                else if (['f/8.0', 'f/11'].includes(sel.aperture)) dofStr = "deep focus";
-                else if (['f/16', 'f/22'].includes(sel.aperture)) dofStr = "infinite depth of field, panchromatic sharpness";
-            }
+            const before = dialogueLines(dialArr, 'before', globalVoiceStyles);
+            const during = dialogueLines(dialArr, 'during', globalVoiceStyles);
+            const after = dialogueLines(dialArr, 'after', globalVoiceStyles);
+            const camera = cameraBitsFor(sel, mode, compact ? 'Seedance' : platform, sfxStr, bgmStr, rules);
+            const frame = aspectLabel(sel.aspectRatio);
+            const avoid = cleanPromptText(negPrompt);
 
-            const techArr = [sel.camera, sel.lens, sel.aperture ? `shot at ${sel.aperture}` : '', sel.angle, sel.lighting].filter(Boolean);
-            const motionArr = mode === 'video' ? [sel.movement, sel.actionSpeed, sel.duration, sel.transition].filter(Boolean) : [];
-            let finalPrompt = "";
-
-            if (aiModel === 'MY STYLE' && myStyle) {
-                let result = myStyle.template || "{subject}";
-                const getVal = (key) => sel[key] || myStyle.strictDefaults[key] || "";
-                result = result.replace(/\{subject\}/g, subjectText).replace(/\{shotType\}/g, getVal('shotType')).replace(/\{shotStyle\}/g, getVal('shotStyle')).replace(/\{camera\}/g, getVal('camera')).replace(/\{lens\}/g, getVal('lens')).replace(/\{angle\}/g, getVal('angle')).replace(/\{lighting\}/g, getVal('lighting'));
-                if (mode === 'video') result = result.replace(/\{movement\}/g, getVal('movement')).replace(/\{actionSpeed\}/g, getVal('actionSpeed')).replace(/\{duration\}/g, getVal('duration')).replace(/\{transition\}/g, getVal('transition')).replace(/\{sfx\}/g, sfxStr || "").replace(/\{bgm\}/g, bgmStr || "");
-                else result = result.replace(/\{movement\}|\{actionSpeed\}|\{duration\}|\{transition\}|\{sfx\}|\{bgm\}/g, "");
-                if (myStyle.customModifiers?.trim()) result += " " + myStyle.customModifiers.trim();
-                finalPrompt = result.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').replace(/\n\s*\n/g, '\n'); 
-            } else {
-                // ── NEW ORDER: Subject → Dialogue → Technical Parameters ──
-                let subjectPart = "";
-                let dialoguePart = "";
-                let techPart = "";
-
-                // 1. SUBJECT / ACTION (with shot type prefix and movement prefix)
-                let movementPrefix = "";
-                if (mode === 'video' && videoPlatform === 'Runway') {
-                    if (sel.movement) movementPrefix = `[Camera Movement: ${sel.movement}] `;
-                } else if (mode === 'video' && videoPlatform === 'Veo 3') {
-                    if (sel.movement) movementPrefix = `Cinematic ${sel.movement.toLowerCase()} shot. `;
-                } else if (mode === 'video' && videoPlatform === 'Seedance') {
-                    if (sel.movement) movementPrefix = `(Camera: ${sel.movement}) `;
-                }
-                let opening = `${movementPrefix}${sel.shotType ? sel.shotType + ' of ' : ''}${subjectText}${sel.shotStyle ? `, ${sel.shotStyle} style.` : '.'}`;
-                subjectPart = opening.charAt(0).toUpperCase() + opening.slice(1);
-
-                // 2. DIALOGUE (immediately after subject — before any tech params)
-                if (mode === 'video' && dialArr?.length && dialArr.some(d => d.character.trim() || d.text.trim())) {
-                    let dlg = "\n[DIALOGUE]:\n";
-                    dialArr.forEach(d => {
-                        if (d.character.trim() || d.text.trim()) {
-                            let voiceStr = d.voiceStyle ? (globalVoiceStyles.find(v => v.name === d.voiceStyle) ? ` [Voice: ${d.voiceStyle} - ${globalVoiceStyles.find(v => v.name === d.voiceStyle).description}]` : ` [Voice: ${d.voiceStyle}]`) : '';
-                            dlg += `${d.character ? `@${d.character.replace(/\s+/g, '')}` : '@Character'}${d.mood ? ` (${d.mood})` : ''}${d.reaction ? ` [Reaction: ${d.reaction}]` : ''}${d.event ? ` [Event: ${d.event}]` : ''}${voiceStr}: "${d.text}"\n`;
-                        }
-                    });
-                    dialoguePart = dlg;
-                }
-
-                // 3. TECHNICAL PARAMETERS (always last — camera, lens, lighting, motion, audio)
-                const techSentences = [];
-                if (techArr.length > 0) techSentences.push(`Captured on ${sel.camera || 'standard camera'} with a ${sel.lens || 'standard lens'} at ${sel.aperture || 'f/2.8'} from a ${sel.angle || 'neutral angle'}, featuring ${sel.lighting || 'natural'} lighting.`);
-                if (dofStr) techSentences.push(`${dofStr}.`);
-                if (sel.filmStock) techSentences.push(`${sel.filmStock} film stock.`);
-                if (mode === 'video' && motionArr.length > 0) {
-                    if (videoPlatform === 'Seedance') {
-                        techSentences.push(`Motion: ${sel.actionSpeed || 'normal'}.`);
-                    } else if (videoPlatform === 'Runway') {
-                        techSentences.push(`[Speed: ${sel.actionSpeed || 'normal'}]`);
-                    } else {
-                        techSentences.push(`${sel.movement || 'Static'} camera, ${sel.actionSpeed || 'normal speed'}, ${sel.duration || '5s'}.${sel.transition && sel.transition !== 'None' ? ` ${sel.transition} transition.` : ''}`);
-                    }
-                    if (sfxStr || bgmStr) techSentences.push(`Audio: ${[sfxStr, bgmStr].filter(Boolean).join(', ')}.`);
-                }
-                techPart = techSentences.length ? '\n' + techSentences.join(' ') : '';
-
-                finalPrompt = subjectPart + dialoguePart + techPart;
-
-                if (mode === 'video' && videoPlatform === 'Seedance') {
-                    finalPrompt += ` --ar 16:9 --v 3`;
-                }
-            }
-
-            // Negative prompt — always after everything
-            if (negPrompt && negPrompt.trim()) {
-                finalPrompt += `\n[NEGATIVE]: ${negPrompt.trim()}`;
-            }
-            if (sel.aspectRatio) {
-                finalPrompt += ` ${sel.aspectRatio}`;
-            }
-            return finalPrompt.trim();
+            const layers = [];
+            const characters = uniqueJoin(usedChars);
+            const locations = uniqueJoin(usedLocs);
+            if (characters.length) layers.push(`Characters: ${characters.join('. ')}`);
+            if (locations.length) layers.push(`Location: ${locations.join('. ')}`);
+            if (before.length) layers.push(`Dialogue: ${before.join('. ')}`);
+            if (action) layers.push(`Action: ${action}`);
+            if (during.length) layers.push(`Dialogue: ${during.join('. ')}`);
+            if (after.length) layers.push(`Dialogue: ${after.join('. ')}`);
+            if (camera.length) layers.push(`Camera: ${camera.join(', ')}`);
+            if (frame) layers.push(`Frame: ${frame}`);
+            if (avoid) layers.push(`Avoid: ${avoid}`);
+            return layers.join('\n\n');
         };
 
-// ── CHAIN DELTA PROMPT GENERATOR ──────────────────────────────────────
-        // For chain shots 2+: only outputs what DIFFERS from the chain base.
-        // Shot 1 always gets the full prompt via generatePromptText.
-        export const generateChainDeltaPrompt = (subject, sel, sfx, bgm, dialogues, mode, chainBase, videoPlatform, negPrompt) => {
-            const parts = [];
-
-            // Subject is ONLY the action — no character name, no location repeated
-            const shotTypePrefix = sel.shotType ? `${sel.shotType} of ` : '';
-            parts.push(`${shotTypePrefix}${subject}`.trim() + '.');
-
-            // Visual params — only include if DIFFERENT from chain base
-            const visualDeltas = [];
-            if (sel.camera && sel.camera !== chainBase.camera) visualDeltas.push(sel.camera);
-            if (sel.lens && sel.lens !== chainBase.lens) visualDeltas.push(sel.lens);
-            if (sel.lighting && sel.lighting !== chainBase.lighting) visualDeltas.push(sel.lighting);
-            if (sel.shotStyle && sel.shotStyle !== chainBase.shotStyle) visualDeltas.push(sel.shotStyle + ' style');
-            if (sel.angle && sel.angle !== chainBase.angle) visualDeltas.push(sel.angle);
-            if (sel.filmStock && sel.filmStock !== chainBase.filmStock) visualDeltas.push(sel.filmStock);
-            if (visualDeltas.length) parts.push(visualDeltas.join(', ') + '.');
-
-            // Motion params — only include if DIFFERENT from chain base
+export const generateChainDeltaPrompt = (subject, sel = {}, sfx, bgm, dialogues, mode, chainBase = {}, videoPlatform, negPrompt) => {
+            const action = cleanPromptText(subject);
+            const camera = [];
+            const pushIfChanged = (value, base) => {
+                const clean = cleanPromptText(value);
+                if (clean && clean.toLowerCase() !== cleanPromptText(base).toLowerCase()) camera.push(clean);
+            };
+            pushIfChanged(sel.shotType, '');
+            pushIfChanged(sel.camera, chainBase.camera);
+            pushIfChanged(sel.lens, chainBase.lens);
+            pushIfChanged(sel.lighting, chainBase.lighting);
+            pushIfChanged(sel.angle, chainBase.angle);
             if (mode === 'video') {
-                const motionDeltas = [];
-                if (sel.movement && sel.movement !== chainBase.movement) motionDeltas.push(sel.movement);
-                if (sel.actionSpeed && sel.actionSpeed !== chainBase.actionSpeed) motionDeltas.push(sel.actionSpeed);
-                if (sel.duration && sel.duration !== chainBase.duration) motionDeltas.push(sel.duration);
-                if (sel.transition && sel.transition !== chainBase.transition && sel.transition !== 'None') motionDeltas.push(`${sel.transition} transition`);
-                if (motionDeltas.length) parts.push(motionDeltas.join(', ') + '.');
-
-                // Audio — always include if present
-                const sfxStr = sfx ? `${sfx} SFX` : '';
-                const bgmStr = bgm ? `${bgm} BGM` : '';
-                if (sfxStr || bgmStr) parts.push([sfxStr, bgmStr].filter(Boolean).join(', ') + '.');
+                pushIfChanged(sel.movement, chainBase.movement);
+                pushIfChanged(sel.actionSpeed, chainBase.actionSpeed);
+                pushIfChanged(sel.duration, chainBase.duration);
+                if (sel.transition && sel.transition !== 'None') pushIfChanged(sel.transition, chainBase.transition);
             }
-
-            // Dialogue — always include
-            if (mode === 'video' && dialogues?.some(d => d.text?.trim())) {
-                parts.push('\n[DIALOGUE]: ' + dialogues.filter(d => d.text?.trim()).map(d => `${d.character || 'Character'}: "${d.text}"`).join(' | '));
-            }
-
-            // Negative prompt — always include
-            if (negPrompt?.trim()) parts.push(`\n[NEG]: ${negPrompt.trim()}`);
-
-            // NO aspect ratio on delta shots — added once at scene level in the script
-
-            return parts.join(' ').replace(/\s{2,}/g, ' ').trim();
+            const spoken = dialogueLines(dialogues, 'before').concat(dialogueLines(dialogues, 'during'), dialogueLines(dialogues, 'after'));
+            const layers = [];
+            if (action) layers.push(`Action: ${action}`);
+            if (spoken.length) layers.push(`Dialogue: ${spoken.join('. ')}`);
+            if (camera.length) layers.push(`Camera: ${camera.join(', ')}`);
+            const avoid = cleanPromptText(negPrompt);
+            if (avoid) layers.push(`Avoid: ${avoid}`);
+            return layers.join('\n\n');
         };
 
-export const shotifyPrompt = (subject, sel, sfx, bgm, dialogues, mode, platform, negPrompt) => {
-            const profile = PLATFORM_PROMPT_PROFILES[platform] || PLATFORM_PROMPT_PROFILES['Standard'];
-            const keep = new Set(profile.keepFields);
-
-            // Always preserve the subject exactly as-is
-            const subj = subject?.trim() || '';
-
-            const parts = [];
-
-            // Shot type prefix — short form
-            if (keep.has('shotType') && sel.shotType) {
-                const shortType = sel.shotType.replace(/\(.*?\)/g, '').trim(); // strip "(ECU)" etc
-                parts.push(shortType + ' —');
-            }
-
-            parts.push(subj);
-
-            if (profile.style === 'bracketed') {
-                // Runway-style: [Tag: Value]
-                if (keep.has('shotStyle') && sel.shotStyle) parts.push(`[Style: ${sel.shotStyle}]`);
-                if (keep.has('camera') && sel.camera) parts.push(`[Camera: ${sel.camera}]`);
-                if (keep.has('lens') && sel.lens) parts.push(`[Lens: ${sel.lens}]`);
-                if (keep.has('angle') && sel.angle) parts.push(`[Angle: ${sel.angle}]`);
-                if (keep.has('lighting') && sel.lighting) parts.push(`[Lighting: ${sel.lighting}]`);
-                if (mode === 'video') {
-                    if (keep.has('movement') && sel.movement) parts.push(`[Movement: ${sel.movement}]`);
-                    if (keep.has('actionSpeed') && sel.actionSpeed) parts.push(`[Speed: ${sel.actionSpeed}]`);
-                    if (keep.has('duration') && sel.duration) parts.push(`[Duration: ${sel.duration}]`);
-                }
-                if (keep.has('filmStock') && sel.filmStock) parts.push(`[Film: ${sel.filmStock.split(',')[0].trim()}]`);
-            } else if (profile.style === 'minimal') {
-                // Seedance: ultra-compact comma list
-                const tags = [];
-                if (keep.has('lighting') && sel.lighting) tags.push(sel.lighting);
-                if (keep.has('shotStyle') && sel.shotStyle) tags.push(sel.shotStyle);
-                if (mode === 'video' && keep.has('movement') && sel.movement) tags.push(sel.movement);
-                if (mode === 'video' && keep.has('actionSpeed') && sel.actionSpeed) tags.push(sel.actionSpeed);
-                if (tags.length) parts.push(tags.join(', ') + '.');
-            } else {
-                // Natural / cinematic — one tight sentence per group
-                const techTags = [];
-                if (keep.has('camera') && sel.camera) techTags.push(sel.camera);
-                if (keep.has('lens') && sel.lens) techTags.push(sel.lens);
-                if (keep.has('angle') && sel.angle) techTags.push(sel.angle);
-                if (keep.has('lighting') && sel.lighting) techTags.push(sel.lighting + ' lighting');
-                if (keep.has('shotStyle') && sel.shotStyle) techTags.push(sel.shotStyle + ' style');
-                if (techTags.length) parts.push(techTags.join(', ') + '.');
-
-                if (mode === 'video') {
-                    const motionTags = [];
-                    if (keep.has('movement') && sel.movement) motionTags.push(sel.movement);
-                    if (keep.has('actionSpeed') && sel.actionSpeed) motionTags.push(sel.actionSpeed);
-                    if (keep.has('duration') && sel.duration) motionTags.push(sel.duration);
-                    if (keep.has('transition') && sel.transition && sel.transition !== 'None') motionTags.push(`${sel.transition} transition`);
-                    if (motionTags.length) parts.push(motionTags.join(', ') + '.');
-                }
-
-                if (keep.has('filmStock') && sel.filmStock) {
-                    const stockShort = sel.filmStock.split(',')[0].trim();
-                    parts.push(`${stockShort} film stock.`);
-                }
-            }
-
-            // Dialogue — always keep, compact format
-            if (mode === 'video' && dialogues?.some(d => d.text?.trim())) {
-                parts.push('\n[DIALOGUE]: ' + dialogues.filter(d => d.text?.trim()).map(d => `${d.character || 'Character'}: "${d.text}"`).join(' | '));
-            }
-
-            // Negative prompt — always keep
-            if (negPrompt?.trim()) parts.push(`\n[NEG]: ${negPrompt.trim()}`);
-
-            // Aspect ratio
-            if (sel.aspectRatio) parts.push(sel.aspectRatio);
-
-            let result = parts.join(' ').replace(/\s{2,}/g, ' ').replace(/\s+\./g, '.').trim();
-
-            // Hard token cap — trim trailing sentences if over limit
-            const estTokens = Math.ceil(result.length / 4);
-            if (estTokens > profile.maxTokens) {
-                const maxChars = profile.maxTokens * 4;
-                // Cut at last sentence boundary before limit
-                const cut = result.lastIndexOf('.', maxChars);
-                result = (cut > 100 ? result.substring(0, cut + 1) : result.substring(0, maxChars)).trim();
-            }
-
-            return result;
+export const shotifyPrompt = (subject, sel, sfx, bgm, dialogues, mode, platform, negPrompt, extras = {}) => {
+            return generatePromptText(subject, sel, sfx, bgm, dialogues, mode, platform, null, extras.globalCharacters || [], extras.globalLocations || [], extras.globalVoiceStyles || [], negPrompt, platform, { ...extras, compact: true });
         };
+
+export const magicEnhanceSubject = (subject, { platform = 'Standard', model = '' } = {}) => {
+            const cleaned = cleanPromptText(subject);
+            const words = cleaned.split(/\s+/).filter(Boolean);
+            const alreadySpecific = words.length >= 18;
+            if (!cleaned) return { text: '', changed: false, skipped: true };
+            if (alreadySpecific) return { text: cleaned, changed: cleaned !== String(subject || '').trim(), skipped: true };
+            const seedance = platform === 'Seedance';
+            const gpt = model === 'GPT 2.6' || model === 'GPT V2';
+            let text = cleaned;
+            if (seedance && !/\b(walks|turns|looks|runs|stands|sits|opens|holds|steps|reaches)\b/i.test(text)) {
+                text = `${text}, one clear physical action`;
+            } else if (gpt && !/\b(light|shadow|frame)\b/i.test(text)) {
+                text = `${text}, soft cinematic light in a steady frame`;
+            } else if (!seedance && words.length < 12 && !/\b(light|frame|motion)\b/i.test(text)) {
+                text = `${text}, natural light and one continuous motion`;
+            }
+            text = cleanPromptText(text);
+            return { text, changed: text !== String(subject || '').trim(), skipped: false };
+        };
+
 

@@ -24,7 +24,7 @@ import { CINEMATIC_THEMES } from './data/themes';
 import { APP_VERSION } from './data/version';
 import { DeepBrain, FastBrain } from './engine/directorBrain';
 import { ImageBridge, VideoBridge } from './engine/llm';
-import { LocalAIEngine, generateChainDeltaPrompt, generatePromptText, shotifyPrompt } from './engine/prompt';
+import { LocalAIEngine, generateChainDeltaPrompt, generatePromptText, magicEnhanceSubject, shotifyPrompt } from './engine/prompt';
 import { checkStorageQuota } from './engine/storage';
 
 export default function App() {
@@ -880,18 +880,24 @@ export default function App() {
           
           const handleMagicEnhance = async () => {
               if (!subject.trim()) { addToast("Enter a basic subject first.", 'warning', 3000); return; }
+              const local = magicEnhanceSubject(subject, { platform: videoPlatform, model: aiModel });
+              if (local.skipped) {
+                  if (local.changed) setSubject(local.text);
+                  addToast('The scene is already specific. Magic Enhance left it alone.', 'info', 3000);
+                  return;
+              }
               setIsGenerating(true);
               try {
                   if (isLlmReady && llmEngine) {
-                      const p = `Enhance this short prompt into a highly detailed, cinematic scene description for an AI video generator. Do not add UI text, just the enhanced description. Make it visually stunning. Original: "${subject}"`;
-                      const reply = await llmEngine.chat.completions.create({ messages: [{ role: "user", content: p }], temperature: 0.7 });
-                      setSubject(reply.choices[0].message.content.trim());
+                      const target = videoPlatform === 'Seedance' ? 'Seedance' : (aiModel === 'GPT 2.6' || aiModel === 'GPT V2' ? 'GPT 2.6' : videoPlatform);
+                      const p = `Rewrite this into one cinematic action sentence for ${target}. Keep the same event. Add a concrete light or motion detail only if the line is vague. No labels, no quotes, no lists, no aspect ratio, no camera brand list, no symbols. Original: ${local.text}`;
+                      const reply = await llmEngine.chat.completions.create({ messages: [{ role: "user", content: p }], temperature: 0.4 });
+                      const next = magicEnhanceSubject(reply.choices[0].message.content, { platform: videoPlatform, model: aiModel });
+                      setSubject(next.text || local.text);
                   } else {
-                      const adjectives = ["cinematic, highly detailed", "dramatic lighting, volumetric rays", "8k resolution, masterpiece", "intricate textures", "hyper-realistic", "unreal engine 5 render", "perfect composition", "breathtaking lighting"];
-                      const randomAdj = adjectives.sort(() => 0.5 - Math.random()).slice(0, 3).join(', ');
-                      setSubject(`${subject}, ${randomAdj}`);
+                      setSubject(local.text);
                   }
-              } catch(e) { console.error(e); } 
+              } catch(e) { console.error(e); setSubject(local.text); }
               finally { setIsGenerating(false); }
           };
 
@@ -984,13 +990,10 @@ export default function App() {
                   setPrompt(delta);
                   return;
               }
-              const raw = generatePromptText(subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform);
-              if (shotifyMode) {
-                  setPrompt(shotifyPrompt(subject, selections, sfx, bgm, dialogues, promptMode, videoPlatform, negativePrompt));
-              } else {
-                  setPrompt(raw);
-              }
-          }, [subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, editingIndex, shotifyMode, chainMode, chainShotCount, chainBase]);
+              const directorRules = activeDirectorRules.map(id => DIRECTOR_RULES.find(rule => rule.id === id)).filter(Boolean);
+              const raw = generatePromptText(subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, { directorRules, compact: shotifyMode });
+              setPrompt(raw);
+          }, [subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, editingIndex, shotifyMode, chainMode, chainShotCount, chainBase, activeDirectorRules]);
           useEffect(() => { setExpandedShotIndex(-1); setIsEditingTransitions(false); setSelectedShots([]); }, [activeSceneId]);
 
           const getSceneDuration = () => {
@@ -2018,7 +2021,7 @@ export default function App() {
             } finally { setIsGenerating(false); }
           };
 
-          const handleAddDialogue = () => { setDialogues([...dialogues, { character: '', text: '', mood: '', reaction: '', event: '', voiceStyle: '' }]); };
+          const handleAddDialogue = () => { setDialogues([...dialogues, { character: '', text: '', mood: '', reaction: '', event: '', voiceStyle: '', placement: 'after' }]); };
           const handleDialogueChange = (index, field, value) => { const newD = [...dialogues]; newD[index][field] = value; setDialogues(newD); };
           const handleRemoveDialogue = (index) => setDialogues(dialogues.filter((_, i) => i !== index));
           
@@ -2167,27 +2170,20 @@ export default function App() {
               if (s._chainDelta && chainMode) {
                   return generateChainDeltaPrompt(s.subject, s.selections, s.sfx, s.bgm, s.dialogues, s.mode || 'video', chainBase, videoPlatform, s.negativePrompt);
               }
-              if (shotifyMode) {
-                  return shotifyPrompt(s.subject, s.selections, s.sfx, s.bgm, s.dialogues, s.mode || 'video', videoPlatform, s.negativePrompt);
-              }
-              return generatePromptText(s.subject, s.selections, s.sfx, s.bgm, s.dialogues, s.mode || 'video', aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, s.negativePrompt, videoPlatform);
+              const directorRules = activeDirectorRules.map(id => DIRECTOR_RULES.find(rule => rule.id === id)).filter(Boolean);
+              return generatePromptText(s.subject, s.selections, s.sfx, s.bgm, s.dialogues, s.mode || 'video', aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, s.negativePrompt, videoPlatform, { directorRules, compact: shotifyMode });
           };
 
           const getActiveSceneScript = () => {
               if (shots.length === 0) return "";
               let script = "";
-              if (activeDirectorRules.length > 0) { script += "=== DIRECTOR RULES ===\n" + activeDirectorRules.map(id => `- ${DIRECTOR_RULES.find(r => r.id === id)?.name}: ${DIRECTOR_RULES.find(r => r.id === id)?.text}`).join('\n') + "\n======================\n\n"; }
               const shotLines = shots.map((s, i) => `${s.mode === 'image' ? 'Panel' : 'Shot'} ${i + 1}:\n${getFinalPromptText(s)}`).join('\n\n');
-              // If scene has chain shots, append aspect ratio once at the end
-              const hasChain = shots.some(s => s._chainDelta !== undefined);
-              const ar = shots[0]?.selections?.aspectRatio || '--ar 16:9';
-              return script + shotLines + (hasChain ? `\n\n[Scene Aspect Ratio: ${ar}]` : '');
+              return script + shotLines;
           };
 
           const generateMovieScript = () => {
               let script = "";
-              if (activeDirectorRules.length > 0) { script += "=== DIRECTOR RULES ===\n" + activeDirectorRules.map(id => `- ${DIRECTOR_RULES.find(r => r.id === id)?.name}: ${DIRECTOR_RULES.find(r => r.id === id)?.text}`).join('\n') + "\n======================\n\n"; }
-              return script + scenes.map((scene) => `=== ${scene.name.toUpperCase()} ===\n\n${scene.shots?.length > 0 ? scene.shots.map((s, i) => `${s.mode === 'image' ? 'Panel' : 'Shot'} ${i + 1}:\n${getFinalPromptText(s)}`).join('\n\n') : "[No content]"}`).join('\n\n\n');
+              return script + scenes.map((scene) => `${scene.name}\n\n${scene.shots?.length > 0 ? scene.shots.map((s, i) => `${s.mode === 'image' ? 'Panel' : 'Shot'} ${i + 1}:\n${getFinalPromptText(s)}`).join('\n\n') : "No content"}`).join('\n\n\n');
           };
 
           const fallbackCopy = (text, callback) => { const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); if (callback) callback(); } catch (err) { console.error('Copy failed', err); } document.body.removeChild(textArea); };
@@ -3452,8 +3448,8 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                             </div>
                         )}
                         <div className="flex items-center bg-input-light dark:bg-input-dark rounded-xl border border-border-light dark:border-border-dark shadow-inner p-1">
-                            {['Nano Banana 2', 'KLING AI', 'GPT V2', 'MY STYLE'].map(model => (
-                                <button key={model} onClick={() => setAiModel(model)} className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-300 ${aiModel === model ? (model === 'MY STYLE' ? 'bg-accent/20 text-accent border-accent/50 shadow-sm' : 'bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-sm') : 'text-textMuted-light dark:text-textMuted-dark hover:text-textMain-light dark:hover:text-textMain-dark border border-transparent'}`}>
+                            {['Nano Banana 2', 'KLING AI', 'GPT 2.6', 'MY STYLE'].map(model => (
+                                <button key={model} onClick={() => setAiModel(model)} className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-300 ${(aiModel === model || (model === 'GPT 2.6' && aiModel === 'GPT V2')) ? (model === 'MY STYLE' ? 'bg-accent/20 text-accent border-accent/50 shadow-sm' : 'bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-sm') : 'text-textMuted-light dark:text-textMuted-dark hover:text-textMain-light dark:hover:text-textMain-dark border border-transparent'}`}>
                                     <Icon name="Sparkles" size={12} className={aiModel === model ? (model === 'MY STYLE' ? 'text-accent' : 'text-amber-500') : 'text-slate-400'} />
                                     <span className="whitespace-nowrap hidden lg:inline">{model}</span>
                                 </button>
@@ -3811,7 +3807,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                                                     <Icon name="AlertTriangle" size={14} className="mr-2 shrink-0" />
                                                     <span><strong>Pacing Warning:</strong> ~{totalDialogueWords} words requires at least {requiredDurationNum}s. (Current: {currentDurationNum}s)</span>
                                                 </div>
-                                                <button onClick={() => setSelections(prev => ({...prev, duration: `${requiredDurationNum}.0s`}))} className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors shadow-sm whitespace-nowrap ml-2">Auto-Fix</button>
+                                                <button onClick={() => { const target = Math.min(120, Math.max(5, requiredDurationNum)); const snapped = OPTIONS.durations.reduce((best, item) => Math.abs(parseFloat(item) - target) < Math.abs(parseFloat(best) - target) ? item : best); setSelections(prev => ({...prev, duration: snapped})); }} className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors shadow-sm whitespace-nowrap ml-2">Auto-Fix</button>
                                             </div>
                                         )}
                                         <div className="max-h-[250px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
@@ -3878,6 +3874,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                                                             <select value={OPTIONS.reactions.includes(d.reaction) ? d.reaction : (d.reaction ? 'Custom' : '')} onChange={(e) => { if (e.target.value === 'Custom') { const customVal = window.prompt("Enter a custom reaction:"); if (customVal) handleDialogueChange(index, 'reaction', customVal.trim()); } else handleDialogueChange(index, 'reaction', e.target.value); }} className="col-span-1 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark text-textMain-light dark:text-textMain-dark rounded p-1.5 text-xs focus:border-cyan-500 outline-none"><option value="">React</option>{OPTIONS.reactions.map(r => <option key={r} value={r}>{r}</option>)}{d.reaction && !OPTIONS.reactions.includes(d.reaction) && <option value={d.reaction}>{d.reaction}</option>}<option value="Custom" className="text-cyan-600 dark:text-cyan-400 font-bold">Custom...</option></select>
                                                             <select value={OPTIONS.dialogueEvents.includes(d.event) ? d.event : (d.event ? 'Custom' : '')} onChange={(e) => { if (e.target.value === 'Custom') { const customVal = window.prompt("Enter a custom event:"); if (customVal) handleDialogueChange(index, 'event', customVal.trim()); } else handleDialogueChange(index, 'event', e.target.value); }} className="col-span-1 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark text-textMain-light dark:text-textMain-dark rounded p-1.5 text-xs focus:border-amber-500 outline-none"><option value="">Event</option>{OPTIONS.dialogueEvents.map(ev => <option key={ev} value={ev}>{ev}</option>)}{d.event && !OPTIONS.dialogueEvents.includes(d.event) && <option value={d.event}>{d.event}</option>}<option value="Custom" className="text-amber-600 dark:text-amber-400 font-bold">Custom...</option></select>
                                                             <select value={d.voiceStyle} onChange={(e) => handleDialogueChange(index, 'voiceStyle', e.target.value)} className="col-span-1 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark text-textMain-light dark:text-textMain-dark rounded p-1.5 text-xs focus:border-indigo-500 outline-none"><option value="">Voice</option>{globalVoiceStyles.length > 0 && <optgroup label="My Voice Library">{globalVoiceStyles.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}</optgroup>}<optgroup label="Default Presets">{OPTIONS.defaultVoiceStyles.map(v => <option key={v} value={v}>{v}</option>)}</optgroup></select>
+                                                            <select value={d.placement || 'after'} onChange={(e) => handleDialogueChange(index, 'placement', e.target.value)} className="col-span-2 sm:col-span-5 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark text-textMain-light dark:text-textMain-dark rounded p-1.5 text-xs focus:border-accent outline-none"><option value="before">Action after this line</option><option value="during">Action during this line</option><option value="after">Action before this line</option></select>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <div className="cursor-grab active:cursor-grabbing p-1 hover:bg-input-light dark:hover:bg-border-dark rounded transition-colors" title="Drag to reorder dialogue">

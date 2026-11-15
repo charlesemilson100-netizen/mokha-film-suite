@@ -377,7 +377,7 @@ export const OPTIONS = {
             'Normal Speed', 'Speed Ramp', '2x Fast Forward', 'Slow Motion', 
             'Ultra Slow Motion', 'Time-Lapse', 'Stop Motion'
           ],
-          durations: Array.from({length: 150}, (_, i) => ((i + 1) / 10).toFixed(1) + 's'),
+          durations: Array.from({length: 24}, (_, i) => `${(i + 1) * 5}s`),
           angles: [
             'Eye Level', 'High Angle', 'Low Angle', 'Dutch Angle / Canted', 
             'Overhead / Top-Down', 'Ground Level', 'Shoulder Level', 'Hip Level', 'Knee Level'
@@ -433,9 +433,9 @@ export const OPTIONS = {
                 maxDuration: 10
             },
             'Seedance': { 
-                forbidden: [], warning: "", unsupported: { movements: ['Orbit', 'Crane Shot', 'Tracking / Follow'], actionSpeeds: ['Speed Ramp', 'Stop Motion'] }, disabledCategories: ['lens', 'aperture'], maxDuration: 5
+                forbidden: [], warning: "", unsupported: { movements: ['Orbit', 'Crane Shot', 'Tracking / Follow'], actionSpeeds: ['Speed Ramp', 'Stop Motion'] }, disabledCategories: ['lens', 'aperture'], maxDuration: 120
             },
-            'Standard': { forbidden: [], warning: "", unsupported: {}, disabledCategories: [], maxDuration: 100 }
+            'Standard': { forbidden: [], warning: "", unsupported: {}, disabledCategories: [], maxDuration: 120 }
         };
 
 // SANITIZATION DICTIONARY FOR "SAFE" PROMPTS
