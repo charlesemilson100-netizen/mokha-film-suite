@@ -24,6 +24,8 @@ import { CINEMATIC_THEMES } from './data/themes';
 import { APP_VERSION } from './data/version';
 import { DeepBrain, FastBrain } from './engine/directorBrain';
 import { ImageBridge, VideoBridge } from './engine/llm';
+import { FightClub } from './components/fight/FightClub';
+import { buildFightPrompt, fighterNames } from './engine/fightPrompt';
 import { LocalAIEngine, generateChainDeltaPrompt, generatePromptText, magicEnhanceSubject, shotifyPrompt } from './engine/prompt';
 import { checkStorageQuota } from './engine/storage';
 
@@ -241,6 +243,9 @@ export default function App() {
           const [showGlobalLocModal, setShowGlobalLocModal] = useState(false);
           const [showGlobalVoiceModal, setShowGlobalVoiceModal] = useState(false);
           const [showDirectorMenu, setShowDirectorMenu] = useState(false);
+          const [showFightClub, setShowFightClub] = useState(false);
+          const [fightDraft, setFightDraft] = useState(null);
+          const skipFightClear = useRef(false);
 
           // ── Pro Script Builder Import Detection ─────────────────────────
           useEffect(() => {
@@ -901,6 +906,29 @@ export default function App() {
               finally { setIsGenerating(false); }
           };
 
+          const applyFightClub = (draft, prompt, style) => {
+              skipFightClear.current = true;
+              setFightDraft(draft);
+              const action = (prompt.split('\n\n').find(line => line.startsWith('Action:')) || '').replace(/^Action:\s*/, '');
+              setSubject(action);
+              setSelections(prev => ({ ...prev, shotType: style.shotType, camera: style.camera, lens: style.lens, movement: style.movement, lighting: style.lighting, duration: draft.duration, aspectRatio: '--ar 16:9' }));
+              setSfx(style.sfx);
+              setNegativePrompt(prev => prev?.includes('cloned faces') ? prev : `${prev ? prev + ', ' : ''}cloned faces, identical bodies, extra limbs, swapped faces`);
+              setGlobalCharacters(prev => {
+                  const additions = [];
+                  draft.fighters.forEach(fighter => {
+                      fighterNames(fighter).forEach(name => {
+                          if (!prev.some(char => char.name === name) && !additions.some(char => char.name === name)) {
+                              additions.push({ id: `fc_${name.replace(/\s+/g, '_')}`, name, role: fighter.role, appearance: fighter.dress === 'different' ? 'Different clothes and a unique face' : 'Same clothes, unique face, not a clone' });
+                          }
+                      });
+                  });
+                  return [...prev, ...additions];
+              });
+              setShowFightClub(false);
+              setTimeout(() => { skipFightClear.current = false; }, 0);
+          };
+
           const getStatusColor = (status) => {
               switch(status) {
                   case 'Completed': return 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/30';
@@ -990,10 +1018,14 @@ export default function App() {
                   setPrompt(delta);
                   return;
               }
+              if (fightDraft) {
+                  setPrompt(buildFightPrompt(fightDraft));
+                  return;
+              }
               const directorRules = activeDirectorRules.map(id => DIRECTOR_RULES.find(rule => rule.id === id)).filter(Boolean);
               const raw = generatePromptText(subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, { directorRules, compact: shotifyMode });
               setPrompt(raw);
-          }, [subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, editingIndex, shotifyMode, chainMode, chainShotCount, chainBase, activeDirectorRules]);
+          }, [subject, selections, sfx, bgm, dialogues, promptMode, aiModel, myStyle, globalCharacters, globalLocations, globalVoiceStyles, negativePrompt, videoPlatform, editingIndex, shotifyMode, chainMode, chainShotCount, chainBase, activeDirectorRules, fightDraft]);
           useEffect(() => { setExpandedShotIndex(-1); setIsEditingTransitions(false); setSelectedShots([]); }, [activeSceneId]);
 
           const getSceneDuration = () => {
@@ -1040,6 +1072,7 @@ export default function App() {
           const removeReferenceImage = (id) => setReferenceImages(prev => prev.filter(img => img.id !== id));
 
           const handleSubjectChange = (e) => {
+            if (!skipFightClear.current) setFightDraft(null);
             const val = e.target.value; setSubject(val);
             const cursor = e.target.selectionStart; const textBefore = val.slice(0, cursor);
             const match = /(?:^|\s)@([^@\s]*)$/.exec(textBefore);
@@ -1163,7 +1196,7 @@ export default function App() {
             const mergedSelections = { ...selections };
             Object.keys(projectDefaults).concat(Object.keys(strictDefaults)).forEach(key => { if (!mergedSelections[key]) mergedSelections[key] = strictDefaults[key] || projectDefaults[key] || ""; });
 
-            const shotData = { subject, negativePrompt, selections: mergedSelections, sfx, bgm, dialogues: [...dialogues], mode: promptMode, status: 'Planning', tags: shotTags.split(',').map(t=>t.trim()).filter(Boolean), referenceImages: [...referenceImages], customPromptOverride: null };
+            const shotData = { subject, negativePrompt, selections: mergedSelections, sfx, bgm, dialogues: [...dialogues], mode: promptMode, status: 'Planning', tags: shotTags.split(',').map(t=>t.trim()).filter(Boolean), referenceImages: [...referenceImages], customPromptOverride: fightDraft ? buildFightPrompt(fightDraft) : null };
             if (editingIndex >= 0) { shotData.status = shots[editingIndex].status || 'Planning'; updateActiveShots(prev => { const newShots = [...prev]; newShots[editingIndex] = shotData; return newShots; }); setEditingIndex(-1); } 
             else { updateActiveShots(prev => [...prev, shotData]); addPromptToHistory(prompt, { mode: promptMode, platform: videoPlatform }); }
             clearForm();
@@ -3478,6 +3511,9 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                             <button onClick={handleRedo} disabled={historyFuture.length === 0} className={`p-1.5 transition-all ${historyFuture.length > 0 ? 'text-primary hover:bg-primary/10 cursor-pointer' : 'text-textMuted-light dark:text-textMuted-dark opacity-50 cursor-not-allowed'}`} title="Redo (Ctrl+Y)"><Icon name="Redo" size={14} /></button>
                         </div>
                         <div className="relative">
+                            <button onClick={() => setShowFightClub(true)} className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-lg transition-all border border-red-500/30 flex items-center space-x-1.5 font-bold shadow-sm">
+                              <Icon name="Activity" size={12} /><span className="hidden xl:inline">Fight Club</span>
+                            </button>
                             <button onClick={() => setShowDirectorMenu(!showDirectorMenu)} className="text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-lg transition-all border border-amber-500/30 flex items-center space-x-1.5 font-bold shadow-sm">
                               <Icon name="Clapperboard" size={12} /><span className="hidden xl:inline">{t('directorRules')}</span>
                             </button>
@@ -5969,6 +6005,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                )}
 
                {/* Performance Settings Modal */}
+               {showFightClub && <FightClub onClose={() => setShowFightClub(false)} onApply={applyFightClub} />}
                {showSettings && (
                    <PerformanceSettingsModal
                        settings={perfSettings}
