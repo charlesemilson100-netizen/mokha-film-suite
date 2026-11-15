@@ -70,7 +70,10 @@ export const FightClub = ({ onClose, onApply, characters = [], locations = [] })
     };
     useEffect(() => {
         const onKey = (event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+            const key = typeof event.key === 'string' ? event.key : '';
+            const altGraph = event.ctrlKey && event.altKey && !event.metaKey;
+            if (altGraph || !key) return;
+            if ((event.ctrlKey || event.metaKey) && key.toLowerCase() === 'z' && !event.shiftKey) {
                 event.preventDefault();
                 undo();
             }
@@ -222,9 +225,9 @@ export const FightClub = ({ onClose, onApply, characters = [], locations = [] })
                         ))}
                         <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold uppercase"><Icon name="MessageSquare" size={11} className="inline mr-1" />Lines</span>
-                            <button onClick={() => commit(prev => ({ ...prev, lines: [...prev.lines, { id: emptyFighter().id, speaker: names[0] || '', text: '' }] }))} className="text-[10px] font-bold px-2 py-1 rounded border border-fuchsia-500/40 text-fuchsia-400">Add line</button>
+                            <button onClick={() => commit(prev => ({ ...prev, lines: [...(prev.lines || []), { id: emptyFighter().id, speaker: names[0] || '', text: '' }] }))} className="text-[10px] font-bold px-2 py-1 rounded border border-fuchsia-500/40 text-fuchsia-400">Add line</button>
                         </div>
-                        {draft.lines.map(line => (
+                        {(draft.lines || []).map(line => (
                             <div key={line.id} className="flex gap-2">
                                 <input value={line.speaker} onChange={e => { const value = e.target.value; commit(prev => ({ ...prev, lines: prev.lines.map(item => item.id === line.id ? { ...item, speaker: value } : item) })); }} placeholder="Who" list="fight-speakers" className="w-28 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark rounded p-1.5 text-xs" />
                                 <input value={line.text} onChange={e => { const value = e.target.value; commit(prev => ({ ...prev, lines: prev.lines.map(item => item.id === line.id ? { ...item, text: value } : item) })); }} placeholder="A short line" className="flex-1 bg-input-light dark:bg-input-dark border border-border-light dark:border-border-dark rounded p-1.5 text-xs" />
@@ -250,13 +253,15 @@ export const FightClub = ({ onClose, onApply, characters = [], locations = [] })
                                 const splitAt = block.indexOf(':');
                                 const label = splitAt > 0 ? block.slice(0, splitAt) : 'Note';
                                 const body = splitAt > 0 ? block.slice(splitAt + 1).trim() : block;
-                                const highlighted = body.split(new RegExp(`(${[...names, draft.location, draft.duration].filter(Boolean).map(item => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '$^'})`, 'gi'));
+                                const terms = [...names, draft.location, draft.duration].filter(item => typeof item === 'string' && item);
+                                const highlighted = body.split(new RegExp(`(${terms.map(item => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '$^'})`, 'gi'));
                                 return (
                                     <p key={block}>
                                         <span className={`font-black ${layerColor[label] || ''}`}>{label}</span>
                                         <span>: </span>
                                         {highlighted.map((part, index) => {
-                                            const hit = [...names, draft.location, draft.duration].some(item => item && part.toLowerCase() === item.toLowerCase());
+                                            if (typeof part !== 'string') return null;
+                                            const hit = terms.some(item => part.toLowerCase() === item.toLowerCase());
                                             return <span key={`${part}-${index}`} className={hit ? 'bg-amber-500/20 text-amber-300 rounded px-0.5' : ''}>{part}</span>;
                                         })}
                                     </p>

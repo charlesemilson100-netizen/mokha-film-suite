@@ -2738,6 +2738,13 @@ export default function App() {
 
           useEffect(() => {
               const handleKeyDown = (e) => {
+                  const key = typeof e.key === 'string' ? e.key : '';
+                  const tag = String(e.target?.tagName || '').toLowerCase();
+                  const isInput = ['input', 'textarea', 'select'].includes(tag) || Boolean(e.target?.isContentEditable);
+                  const pushKey = (keys) => {
+                      if (e.code === 'Space') keys.push('space');
+                      else if (key && !['Control', 'Alt', 'Shift', 'Meta', 'AltGraph'].includes(key)) keys.push(key.toLowerCase());
+                  };
                   // Handle recording new shortcut
                   if (recordingShortcutFor) {
                       e.preventDefault();
@@ -2745,8 +2752,7 @@ export default function App() {
                       if (e.ctrlKey || e.metaKey) keys.push('ctrl');
                       if (e.altKey) keys.push('alt');
                       if (e.shiftKey) keys.push('shift');
-                      if (e.code === 'Space') keys.push('space');
-                      else if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) keys.push(e.key.toLowerCase());
+                      pushKey(keys);
                       
                       if (keys.length > 0 && !['ctrl', 'alt', 'shift'].includes(keys[keys.length-1])) {
                           setShortcuts(prev => ({ ...prev, [recordingShortcutFor]: { ...prev[recordingShortcutFor], keys: keys.join('+') } }));
@@ -2755,20 +2761,18 @@ export default function App() {
                       return;
                   }
 
-                  const tag = e.target.tagName.toLowerCase();
-                  const isInput = ['input', 'textarea', 'select'].includes(tag);
-                  
+                  // Typing, including AltGr (reported as ctrl+alt with no key name on some layouts), stays in the field.
+                  const altGraph = e.ctrlKey && e.altKey && !e.metaKey;
+                  if (isInput && key !== 'Escape' && (altGraph || (!e.ctrlKey && !e.altKey && !e.metaKey))) return;
+                  if (!key && e.code !== 'Space') return;
+
                   let keys = [];
                   if (e.ctrlKey || e.metaKey) keys.push('ctrl');
                   if (e.altKey) keys.push('alt');
                   if (e.shiftKey) keys.push('shift');
-                  if (e.code === 'Space') keys.push('space');
-                  else if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) keys.push(e.key.toLowerCase());
+                  pushKey(keys);
                   
                   const combo = keys.join('+');
-
-                  // If typing in input, only fire shortcuts that contain a modifier so we don't break normal typing
-                  if (isInput && !e.ctrlKey && !e.altKey && !e.metaKey && e.key !== 'Escape') return;
 
                   if (combo === shortcuts.saveProject?.keys) {
                       e.preventDefault(); handleSaveProject();
