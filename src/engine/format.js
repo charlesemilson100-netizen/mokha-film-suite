@@ -1,3 +1,12 @@
+export const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const pdfText = (value) => escapeHtml(value).replace(/\n/g, '<br>');
+
 // ═══════════════════════════════════════════════════════════════════════════
         // FORMAT_CONVERTER MODULE
         // Converts projects to various export formats (TXT, Markdown, PDF, AI Prompt)
@@ -376,8 +385,8 @@ Please generate detailed storyboard descriptions for each shot, including camera
                 
                 // Title page
                 html += '<div style="text-align: center; margin-top: 200px; page-break-after: always;">';
-                html += `<h1 style="font-size: 24pt; margin-bottom: 20px;">${projectData.title}</h1>`;
-                html += `<p style="font-size: 14pt;">By ${projectData.author}</p>`;
+                html += `<h1 style="font-size: 24pt; margin-bottom: 20px;">${escapeHtml(projectData.title)}</h1>`;
+                html += `<p style="font-size: 14pt;">By ${escapeHtml(projectData.author)}</p>`;
                 if (projectData.createdAt) {
                     const date = new Date(projectData.createdAt).toLocaleDateString();
                     html += `<p style="font-size: 12pt; margin-top: 40px;">${date}</p>`;
@@ -389,12 +398,12 @@ Please generate detailed storyboard descriptions for each shot, including camera
                     html += '<div style="page-break-after: always;">';
                     html += '<h2 style="text-align: center; margin-bottom: 30px;">SYNOPSIS</h2>';
                     if (projectData.synopsis.overview) {
-                        html += `<p>${projectData.synopsis.overview}</p>`;
+                        html += `<p>${pdfText(projectData.synopsis.overview)}</p>`;
                     }
                     if (projectData.synopsis.characters && projectData.synopsis.characters.length > 0) {
                         html += '<h3 style="margin-top: 30px;">Characters</h3>';
                         projectData.synopsis.characters.forEach(char => {
-                            html += `<p><strong>${char.name}</strong>: ${char.description || ''}</p>`;
+                            html += `<p><strong>${escapeHtml(char.name)}</strong>: ${pdfText(char.description || '')}</p>`;
                         });
                     }
                     html += '</div>';
@@ -405,7 +414,7 @@ Please generate detailed storyboard descriptions for each shot, including camera
                 if (projectData.scriptDocument && projectData.scriptDocument.scenes) {
                     projectData.scriptDocument.scenes.forEach((scene, sceneIdx) => {
                         // Scene heading
-                        html += `<p style="margin-top: 20px; font-weight: bold;">${scene.heading || `SCENE ${sceneIdx + 1}`}</p>`;
+                        html += `<p style="margin-top: 20px; font-weight: bold;">${escapeHtml(scene.heading || `SCENE ${sceneIdx + 1}`)}</p>`;
                         
                         // Shots
                         if (scene.shots && scene.shots.length > 0) {
@@ -415,16 +424,16 @@ Please generate detailed storyboard descriptions for each shot, including camera
                                     
                                     // Action
                                     if (sel.action) {
-                                        html += `<p style="margin: 10px 0;">${sel.action}</p>`;
+                                        html += `<p style="margin: 10px 0;">${pdfText(sel.action)}</p>`;
                                     }
                                     
                                     // Dialogue
                                     if (sel.character && sel.dialogue) {
-                                        html += `<p style="text-align: center; margin: 10px 0;"><strong>${sel.character.toUpperCase()}</strong></p>`;
+                                        html += `<p style="text-align: center; margin: 10px 0;"><strong>${escapeHtml(String(sel.character || '').toUpperCase())}</strong></p>`;
                                         if (sel.parenthetical) {
-                                            html += `<p style="text-align: center; margin: 5px 0;">(${sel.parenthetical})</p>`;
+                                            html += `<p style="text-align: center; margin: 5px 0;">(${escapeHtml(sel.parenthetical)})</p>`;
                                         }
-                                        html += `<p style="text-align: center; margin: 10px 60px;">${sel.dialogue}</p>`;
+                                        html += `<p style="text-align: center; margin: 10px 60px;">${pdfText(sel.dialogue)}</p>`;
                                     }
                                 }
                             });
@@ -438,13 +447,13 @@ Please generate detailed storyboard descriptions for each shot, including camera
                     html += '<div style="page-break-before: always;">';
                     html += '<h2 style="text-align: center; margin-bottom: 30px;">APPENDIX: CHARACTER ARCS</h2>';
                     projectData.characterArcs.characters.forEach(char => {
-                        html += `<h3>${char.name}</h3>`;
-                        html += `<p><strong>Starting State:</strong> ${char.startingState || 'N/A'}</p>`;
-                        html += `<p><strong>Ending State:</strong> ${char.endingState || 'N/A'}</p>`;
+                        html += `<h3>${escapeHtml(char.name)}</h3>`;
+                        html += `<p><strong>Starting State:</strong> ${pdfText(char.startingState || 'N/A')}</p>`;
+                        html += `<p><strong>Ending State:</strong> ${pdfText(char.endingState || 'N/A')}</p>`;
                         if (char.turningPoints && char.turningPoints.length > 0) {
                             html += '<p><strong>Turning Points:</strong></p><ul>';
                             char.turningPoints.forEach(tp => {
-                                html += `<li>${tp.description}</li>`;
+                                html += `<li>${pdfText(tp.description)}</li>`;
                             });
                             html += '</ul>';
                         }

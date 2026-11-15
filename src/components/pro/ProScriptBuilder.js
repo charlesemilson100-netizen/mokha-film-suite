@@ -5,6 +5,7 @@ import { useConfirm } from '../ui/ConfirmDialog';
 import { Icon } from '../ui/Icon';
 import { useToast } from '../ui/ToastProvider';
 import { FastBrain } from '../../engine/directorBrain';
+import { escapeHtml } from '../../engine/format';
 import { ExportEngine, LocalStorageManager, PromptConverter, WritingModeManager } from '../../engine/script';
 import { LocalStorage_Manager } from '../../engine/storage';
 
@@ -1517,19 +1518,20 @@ Instructions: Expand the above screenplay by adding more scenes, deeper characte
                 };
 
                 const formatForPDF = (proj) => {
+                    const pdfText = (value) => escapeHtml(value).replace(/\n/g, '<br>');
                     let html = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
                     
                     html += `<div style="page-break-after: always; text-align: center; padding: 100px 0;">
-                        <h1 style="font-size: 32px; margin-bottom: 20px;">${proj.title}</h1>
-                        <p style="font-size: 18px; margin-bottom: 10px;">by ${proj.author}</p>
+                        <h1 style="font-size: 32px; margin-bottom: 20px;">${escapeHtml(proj.title)}</h1>
+                        <p style="font-size: 18px; margin-bottom: 10px;">by ${escapeHtml(proj.author)}</p>
                     </div>`;
 
                     if (proj.synopsis?.overview) {
                         html += `<div style="page-break-after: always;">
                             <h2>Synopsis</h2>
-                            <p>${proj.synopsis.overview}</p>
-                            ${proj.synopsis.setting ? `<p><strong>Setting:</strong> ${proj.synopsis.setting}</p>` : ''}
-                            ${proj.synopsis.theme ? `<p><strong>Theme:</strong> ${proj.synopsis.theme}</p>` : ''}
+                            <p>${pdfText(proj.synopsis.overview)}</p>
+                            ${proj.synopsis.setting ? `<p><strong>Setting:</strong> ${pdfText(proj.synopsis.setting)}</p>` : ''}
+                            ${proj.synopsis.theme ? `<p><strong>Theme:</strong> ${pdfText(proj.synopsis.theme)}</p>` : ''}
                         </div>`;
                     }
 
@@ -1538,25 +1540,24 @@ Instructions: Expand the above screenplay by adding more scenes, deeper characte
                         html += `<div style="page-break-inside: avoid;">`;
                         scene.shots.forEach(shot => {
                             if (shot.sceneHeading) {
-                                html += `<p style="font-weight: bold; margin-top: 20px; margin-bottom: 10px;">${shot.sceneHeading.toUpperCase()}</p>`;
+                                html += `<p style="font-weight: bold; margin-top: 20px; margin-bottom: 10px;">${escapeHtml(String(shot.sceneHeading).toUpperCase())}</p>`;
                             }
-                            // Handle both old format (action string) and new format (actions array)
                             if (shot.action) {
-                                html += `<p style="margin-bottom: 10px;">${shot.action.replace(/\n/g, '<br>')}</p>`;
+                                html += `<p style="margin-bottom: 10px;">${pdfText(shot.action)}</p>`;
                             } else if (shot.actions && shot.actions.length > 0) {
                                 shot.actions.forEach(action => {
                                     if (action.text) {
-                                        html += `<p style="margin-bottom: 10px;">${action.text.replace(/\n/g, '<br>')}</p>`;
+                                        html += `<p style="margin-bottom: 10px;">${pdfText(action.text)}</p>`;
                                     }
                                 });
                             }
                             if (shot.dialogueBlocks) {
                                 shot.dialogueBlocks.forEach(db => {
-                                    html += `<p style="text-align: center; font-weight: bold; margin-top: 10px;">${db.character.toUpperCase()}</p>`;
+                                    html += `<p style="text-align: center; font-weight: bold; margin-top: 10px;">${escapeHtml(String(db.character || '').toUpperCase())}</p>`;
                                     if (db.parenthetical) {
-                                        html += `<p style="text-align: center; font-style: italic; margin: 5px 0;">(${db.parenthetical})</p>`;
+                                        html += `<p style="text-align: center; font-style: italic; margin: 5px 0;">(${escapeHtml(db.parenthetical)})</p>`;
                                     }
-                                    html += `<p style="text-align: center; margin-bottom: 10px;">${db.dialogue}</p>`;
+                                    html += `<p style="text-align: center; margin-bottom: 10px;">${pdfText(db.dialogue)}</p>`;
                                 });
                             }
                         });
