@@ -25,7 +25,7 @@ import { APP_VERSION } from './data/version';
 import { DeepBrain, FastBrain } from './engine/directorBrain';
 import { ImageBridge, VideoBridge } from './engine/llm';
 import { FightClub } from './components/fight/FightClub';
-import { buildFightPrompt, fighterNames } from './engine/fightPrompt';
+import { buildFightScene, fighterNames } from './engine/fightPrompt';
 import { LocalAIEngine, generateChainDeltaPrompt, generatePromptText, magicEnhanceSubject, shotifyPrompt } from './engine/prompt';
 import { checkStorageQuota } from './engine/storage';
 
@@ -906,17 +906,14 @@ export default function App() {
               finally { setIsGenerating(false); }
           };
 
-          const applyFightClub = (draft, prompt, style) => {
-              skipFightClear.current = true;
-              setFightDraft(draft);
-              const action = (prompt.split('\n\n').find(line => line.startsWith('Action:')) || '').replace(/^Action:\s*/, '');
-              setSubject(action);
-              setSelections(prev => ({ ...prev, shotType: style.shotType, camera: style.camera, lens: style.lens, movement: style.movement, lighting: style.lighting, duration: draft.duration, aspectRatio: '--ar 16:9' }));
-              setSfx(style.sfx);
-              setNegativePrompt(prev => prev?.includes('cloned faces') ? prev : `${prev ? prev + ', ' : ''}cloned faces, identical bodies, extra limbs, swapped faces`);
+          const applyFightClub = (draft) => {
+              const scene = buildFightScene(draft);
+              updateActiveProjectScenes(prev => [...prev, scene]);
+              setActiveSceneId(scene.id);
+              setCurrentView('editor');
               setGlobalCharacters(prev => {
                   const additions = [];
-                  draft.fighters.forEach(fighter => {
+                  (draft.fighters || []).forEach(fighter => {
                       fighterNames(fighter).forEach(name => {
                           if (!prev.some(char => char.name === name) && !additions.some(char => char.name === name)) {
                               additions.push({ id: `fc_${name.replace(/\s+/g, '_')}`, name, role: fighter.role, appearance: fighter.dress === 'different' ? 'Different clothes and a unique face' : 'Same clothes, unique face, not a clone' });
@@ -926,7 +923,7 @@ export default function App() {
                   return [...prev, ...additions];
               });
               setShowFightClub(false);
-              setTimeout(() => { skipFightClear.current = false; }, 0);
+              addToast(`${scene.name} added as a scene with ${scene.shots.length} shot${scene.shots.length === 1 ? '' : 's'}.`, 'success');
           };
 
           const getStatusColor = (status) => {
@@ -6005,7 +6002,7 @@ Output ONLY the JSON array for each panel you see. No markdown. No explanation.`
                )}
 
                {/* Performance Settings Modal */}
-               {showFightClub && <FightClub onClose={() => setShowFightClub(false)} onApply={applyFightClub} />}
+               {showFightClub && <FightClub characters={globalCharacters} locations={globalLocations} onClose={() => setShowFightClub(false)} onApply={applyFightClub} />}
                {showSettings && (
                    <PerformanceSettingsModal
                        settings={perfSettings}
