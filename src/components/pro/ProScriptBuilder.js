@@ -2085,21 +2085,30 @@ Instructions: Expand the above screenplay by adding more scenes, deeper characte
                     characterColorMap[name] = CHARACTER_COLORS[idx % CHARACTER_COLORS.length];
                 });
 
-                // Highlight character mentions in text (case-insensitive, excluding scene headings)
-                const highlightCharacterMentions = (text, isSceneHeading = false) => {
-                    if (!showCharacterHighlight || isSceneHeading || !text) return text;
+                const escapeHtml = (value) => String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+                const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-                    let highlightedText = text;
+                // Highlight character mentions in text (case-insensitive, excluding scene headings).
+                // The result is inserted as HTML, so the source text is escaped first.
+                const highlightCharacterMentions = (text, isSceneHeading = false) => {
+                    const safeText = escapeHtml(text || '');
+                    if (!showCharacterHighlight || isSceneHeading || !text) return safeText;
+
+                    let highlightedText = safeText;
                     characterNames.forEach(name => {
-                        const regex = new RegExp(`\\b${name}\\b`, 'gi');
+                        if (!name) return;
                         const color = characterColorMap[name];
+                        if (!/^#[0-9a-fA-F]{6}$/.test(color || '')) return;
+                        const safeName = escapeHtml(name);
+                        const regex = new RegExp(`\\b${escapeRegExp(safeName)}\\b`, 'gi');
                         const isHovered = hoveredCharacter === name;
                         highlightedText = highlightedText.replace(regex, (match) => {
-                            return `<span 
-                                class="character-mention ${isHovered ? 'character-mention-hovered' : ''}" 
-                                style="background-color: ${color}33; color: ${color}; padding: 2px 4px; border-radius: 3px; cursor: pointer; ${isHovered ? 'animation: pulse 1s infinite;' : ''}"
-                                data-character="${name}"
-                            >${match}</span>`;
+                            return `<span class="character-mention${isHovered ? ' character-mention-hovered' : ''}" style="background-color: ${color}33; color: ${color}; padding: 2px 4px; border-radius: 3px; cursor: pointer;${isHovered ? ' animation: pulse 1s infinite;' : ''}" data-character="${safeName}">${match}</span>`;
                         });
                     });
 
