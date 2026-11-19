@@ -1,29 +1,912 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="MOKHA FILM Suite - Professional AI Film Prompt Builder"
-    />
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MOKHA FILM Suite v2.0</title>
-  </head>
-  <body>
+
+    <!-- App Icon -->
+    <link rel="icon" href="logo.png" type="image/png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="MOKHA FILM">
+    <meta name="theme-color" content="#0f172a">
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load html2pdf for Local PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Load WebLLM for Local In-Browser AI -->
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+        if (webllm) {
+            window.webllm = webllm;
+            window.dispatchEvent(new Event('webllm-ready'));
+        }
+    </script>
+
+    <!-- Configure Tailwind for the Professional Light/Dark Gray & Light Blue Theme -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        base: { light: '#e5e5e5', dark: '#111111' }, // Pro Neutral Background
+                        panel: { light: '#f5f5f5', dark: '#1a1a1a' }, // Pro Panel
+                        input: { light: '#ffffff', dark: '#242424' }, // Pro Input/Well
+                        border: { light: '#d4d4d4', dark: '#333333' }, // Pro Hairline Border
+                        textMain: { light: '#171717', dark: '#f5f5f5' }, // High Contrast Text
+                        textMuted: { light: '#737373', dark: '#8a8a8a' }, // Dimmed Metadata
+                        primary: 'rgb(var(--color-primary) / <alpha-value>)',
+                        primaryHover: 'rgb(var(--color-primary-hover) / <alpha-value>)',
+                        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+                        accentHover: 'rgb(var(--color-accent-hover) / <alpha-value>)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --color-primary: 234 179 8; /* #eab308 (Cinema Gold) */
+            --color-primary-hover: 202 138 4; /* #ca8a04 (Darker Gold) */
+            --color-accent: 6 182 212; /* #06b6d4 (Cyan/Teal) */
+            --color-accent-hover: 8 145 178; /* #0891b2 (Darker Cyan) */
+        }
+        body { 
+            overflow-x: hidden; 
+            @apply bg-base-light dark:bg-base-dark text-textMain-light dark:text-textMain-dark transition-colors duration-300;
+        }
+        
+        /* Custom UI scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { @apply bg-input-light dark:bg-input-dark; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-border-light dark:bg-border-dark rounded-sm; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { @apply bg-primary; }
+
+        @media (min-width: 1024px) { body { overflow-y: hidden; } }
+
+        .hover-panel { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hover-panel:focus-within { @apply border-primary/40 shadow-[0_0_15px_rgb(var(--color-primary)/0.1)]; }
+        
+        .typing-dots::after { content: ''; animation: typing 1.5s infinite steps(4, end); }
+        @keyframes typing { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
+        
+        .btn-premium { position: relative; overflow: hidden; z-index: 1; }
+        .btn-premium::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.15) 50%, transparent);
+            transform: rotate(30deg); animation: shimmer 3s infinite linear; z-index: -1;
+        }
+        @keyframes shimmer { 0% { transform: translateX(-100%) rotate(30deg); } 100% { transform: translateX(100%) rotate(30deg); } }
+        
+        @keyframes load-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .animate-load-bar { animation: load-bar 1.5s infinite linear; }
+
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 10px rgb(var(--color-primary)/0.15); border-color: rgb(var(--color-primary)/0.4); } 50% { box-shadow: 0 0 25px rgb(var(--color-primary)/0.6); border-color: rgb(var(--color-primary)/0.8); } }
+        .processing-glow { animation: pulse-glow 2s infinite; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.05); } }
+        .character-mention { transition: all 0.2s ease; }
+        .character-mention:hover { transform: scale(1.1); }
+        .character-mention-hovered { animation: pulse 1s infinite; }
+        
+        @keyframes slide-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .animate-slide-in-right { animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        .page-break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+
+        /* Override extreme radiuses for a more "Pro" technical feel */
+        .rounded-xl { border-radius: 0.375rem !important; }
+        .rounded-2xl { border-radius: 0.5rem !important; }
+        .rounded-lg { border-radius: 0.25rem !important; }
+        
+        /* Enhance inputs to look like metadata fields */
+        input, select, textarea {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        /* Feature 6 — Command Palette */
+        @keyframes palette-in { from { opacity:0; transform: scale(0.96) translateY(-8px); } to { opacity:1; transform: scale(1) translateY(0); } }
+        .animate-palette-in { animation: palette-in 0.18s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+        /* Feature 7 — Kanban status pills */
+        .status-planning  { background: rgba(99,102,241,0.15); color:#818cf8; border-color:rgba(99,102,241,0.3); }
+        .status-ready     { background: rgba(234,179,8,0.15);  color:#eab308; border-color:rgba(234,179,8,0.3); }
+        .status-rendering { background: rgba(6,182,212,0.15);  color:#06b6d4; border-color:rgba(6,182,212,0.3); }
+        .status-completed { background: rgba(34,197,94,0.15);  color:#22c55e; border-color:rgba(34,197,94,0.3); }
+        .status-approved  { background: rgba(168,85,247,0.15); color:#a855f7; border-color:rgba(168,85,247,0.3); }
+
+        /* Feature 8 — Auto-save pulse */
+        @keyframes save-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .saving-pulse { animation: save-pulse 1s ease-in-out infinite; }
+
+        /* Feature 9 — Focus mode */
+        .focus-mode-overlay { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+
+        /* Feature 10 — Aspect ratio frame */
+        .ar-frame { position:relative; background: repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.03) 4px,rgba(255,255,255,0.03) 8px); }
+
+        /* Feature 11 — Toast notifications */
+        @keyframes toast-in  { from { opacity:0; transform:translateX(100%); } to { opacity:1; transform:translateX(0); } }
+        @keyframes toast-out { from { opacity:1; transform:translateX(0); }   to { opacity:0; transform:translateX(110%); } }
+        .toast-enter { animation: toast-in  0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .toast-exit  { animation: toast-out 0.3s  cubic-bezier(0.4,0,1,1)    forwards; }
+
+        /* Feature 2 — Filmstrip */
+        .filmstrip-frame { flex-shrink:0; transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .filmstrip-frame:hover { transform: translateY(-3px) scale(1.04); }
+        .filmstrip-frame.active { box-shadow: 0 0 0 2px rgb(var(--color-primary)); }
+
+        /* Feature 1 — Cinematic themes */
+        .theme-blade-runner { --color-primary:239 68 68; --color-accent:6 182 212; }
+        .theme-kubrick      { --color-primary:255 255 255; --color-accent:99 102 241; }
+        .theme-tarantino    { --color-primary:234 179 8; --color-accent:239 68 68; }
+        .theme-lynch        { --color-primary:168 85 247; --color-accent:236 72 153; }
+        .theme-nolan        { --color-primary:6 182 212; --color-accent:99 102 241; }
+        .theme-scorsese     { --color-primary:249 115 22; --color-accent:234 179 8; }
+
+        /* General UX polish */
+        @keyframes fade-in { from{opacity:0} to{opacity:1} }
+        .animate-fade-in { animation: fade-in 0.3s ease forwards; }
+        .glass-panel { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: rgba(26,26,26,0.85); }
+        .glass-panel-light { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: rgba(245,245,245,0.9); }
+
+        /* === LIQUID GLASS === */
+
+        /* Light mode (default) */
+        .lg-panel {
+          --lg-c1: #7c3aed;
+          --lg-c2: #0ea5e9;
+          --lg-c3: #06b6d4;
+          --lg-c4: #8b5cf6;
+          --lg-bg: rgba(240, 240, 255, 0.68);
+          --lg-border: rgba(255, 255, 255, 0.55);
+          --lg-header-bg: rgba(220, 220, 245, 0.60);
+          --lg-input-bg: rgba(230, 230, 250, 0.65);
+          --lg-bubble-bot-bg: rgba(255, 255, 255, 0.45);
+          --lg-text: #1a1a2e;
+          --lg-text-muted: rgba(60, 60, 90, 0.70);
+        }
+
+        /* Dark mode */
+        .dark .lg-panel {
+          --lg-c1: #7c3aed;
+          --lg-c2: #0ea5e9;
+          --lg-c3: #06b6d4;
+          --lg-c4: #8b5cf6;
+          --lg-bg: rgba(15, 15, 25, 0.65);
+          --lg-border: rgba(255, 255, 255, 0.12);
+          --lg-header-bg: rgba(20, 20, 35, 0.55);
+          --lg-input-bg: rgba(10, 10, 20, 0.60);
+          --lg-bubble-bot-bg: rgba(255, 255, 255, 0.07);
+          --lg-text: #f0f0ff;
+          --lg-text-muted: rgba(200, 200, 220, 0.65);
+        }
+
+        /* Base panel glass surface */
+        .lg-panel {
+          position: relative;
+          overflow: hidden;
+          -webkit-backdrop-filter: blur(24px);
+          backdrop-filter: blur(24px);
+          background: var(--lg-bg);
+          border: 1px solid var(--lg-border);
+          box-shadow: 0 32px 64px rgba(0,0,0,0.4), inset 0 0 0 0.5px rgba(255,255,255,0.08);
+          border-radius: 20px;
+        }
+
+        /* Backdrop-filter fallback for unsupported browsers */
+        @supports not (backdrop-filter: blur(1px)) {
+          .dark .lg-panel { background: #111118; }
+          .lg-panel { background: #f0f0f8; }
+          .dark .lg-header { background: #1a1a28; }
+          .lg-header { background: #e0e0f0; }
+          .dark .lg-input-bar { background: #0d0d1a; }
+          .lg-input-bar { background: #e8e8f8; }
+          .dark .lg-bubble-bot { background: #1e1e2e; }
+          .lg-bubble-bot { background: #dcdcf0; }
+        }
+
+        /* --- Gradient Mesh --- */
+        .lg-mesh {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          overflow: hidden;
+        }
+
+        .lg-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(60px);
+          opacity: 0.55;
+        }
+
+        /* Orb 1 — violet, 10s */
+        @keyframes lg-drift-1 {
+          0%   { transform: translate(0px, 0px); }
+          25%  { transform: translate(40px, -30px); }
+          50%  { transform: translate(-20px, 50px); }
+          75%  { transform: translate(60px, 20px); }
+          100% { transform: translate(0px, 0px); }
+        }
+        .lg-orb-1 {
+          width: 220px; height: 220px;
+          background: var(--lg-c1);
+          top: -40px; left: -40px;
+          animation: lg-drift-1 10s ease-in-out infinite;
+        }
+
+        /* Orb 2 — sky blue, 14s */
+        @keyframes lg-drift-2 {
+          0%   { transform: translate(0px, 0px); }
+          25%  { transform: translate(-50px, 40px); }
+          50%  { transform: translate(30px, -60px); }
+          75%  { transform: translate(-30px, -20px); }
+          100% { transform: translate(0px, 0px); }
+        }
+        .lg-orb-2 {
+          width: 200px; height: 200px;
+          background: var(--lg-c2);
+          top: 30%; right: -30px;
+          animation: lg-drift-2 14s ease-in-out infinite;
+          animation-delay: -4s;
+        }
+
+        /* Orb 3 — cyan, 18s */
+        @keyframes lg-drift-3 {
+          0%   { transform: translate(0px, 0px); }
+          33%  { transform: translate(50px, 60px); }
+          66%  { transform: translate(-40px, 30px); }
+          100% { transform: translate(0px, 0px); }
+        }
+        .lg-orb-3 {
+          width: 180px; height: 180px;
+          background: var(--lg-c3);
+          bottom: 60px; left: 20%;
+          animation: lg-drift-3 18s ease-in-out infinite;
+          animation-delay: -9s;
+        }
+
+        /* Orb 4 — purple, 12s */
+        @keyframes lg-drift-4 {
+          0%   { transform: translate(0px, 0px); }
+          20%  { transform: translate(-60px, -40px); }
+          60%  { transform: translate(40px, 50px); }
+          80%  { transform: translate(20px, -30px); }
+          100% { transform: translate(0px, 0px); }
+        }
+        .lg-orb-4 {
+          width: 190px; height: 190px;
+          background: var(--lg-c4);
+          bottom: -30px; right: 10%;
+          animation: lg-drift-4 12s ease-in-out infinite;
+          animation-delay: -6s;
+        }
+
+        /* --- Header Bar --- */
+        .lg-header {
+          position: relative;
+          background: var(--lg-header-bg);
+          -webkit-backdrop-filter: blur(16px);
+          backdrop-filter: blur(16px);
+          border-bottom: 1px solid var(--lg-border);
+          z-index: 10;
+          overflow: hidden;
+          touch-action: none;
+        }
+        .lg-header::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, var(--lg-c1), var(--lg-c2));
+          opacity: 0.20;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .lg-header > * {
+          position: relative;
+          z-index: 1;
+        }
+        .lg-header button {
+          transition: background 150ms ease;
+        }
+        .lg-header button:hover {
+          background: rgba(255,255,255,0.15);
+          border-radius: 6px;
+        }
+
+        /* --- Panel Open/Close Animation --- */
+        @keyframes lg-panel-open {
+          from { opacity: 0; transform: scale(0.92) translateY(16px); filter: blur(8px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0);    filter: blur(0px); }
+        }
+        @keyframes lg-panel-close {
+          from { opacity: 1; transform: scale(1)    translateY(0);    filter: blur(0px); }
+          to   { opacity: 0; transform: scale(0.92) translateY(16px); filter: blur(4px); }
+        }
+        .lg-panel-open-anim {
+          animation: lg-panel-open 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .lg-panel-close-anim {
+          animation: lg-panel-close 220ms ease-in forwards;
+        }
+
+        /* --- Message Bubbles --- */
+        @keyframes lg-bubble-in {
+          from { opacity: 0; transform: translateY(10px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1); }
+        }
+        .lg-bubble-enter {
+          animation: lg-bubble-in 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .lg-bubble-bot {
+          background: var(--lg-bubble-bot-bg);
+          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+          border: 1px solid var(--lg-border);
+          border-radius: 16px 16px 16px 4px;
+          color: var(--lg-text);
+          padding: 8px 12px;
+          max-width: 85%;
+          align-self: flex-start;
+        }
+        .lg-bubble-user {
+          background: linear-gradient(135deg, var(--lg-c1), var(--lg-c2));
+          border-radius: 16px 16px 4px 16px;
+          color: #fff;
+          padding: 8px 12px;
+          max-width: 85%;
+          align-self: flex-end;
+        }
+
+        /* --- FAB --- */
+        @property --fab-angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+        @keyframes lg-fab-spin {
+          to { --fab-angle: 360deg; }
+        }
+        @keyframes lg-fab-shimmer {
+          0%   { background-position: 200% center; }
+          100% { background-position: -200% center; }
+        }
+        .lg-fab {
+          width: 56px; height: 56px;
+          border-radius: 50%;
+          background: conic-gradient(from var(--fab-angle), var(--lg-c1), var(--lg-c2), var(--lg-c3), var(--lg-c4), var(--lg-c1));
+          -webkit-backdrop-filter: blur(12px);
+          backdrop-filter: blur(12px);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.15);
+          border: none;
+          color: #fff;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          position: relative;
+          animation: lg-fab-spin 6s linear infinite;
+          transition: transform 200ms ease, box-shadow 200ms ease;
+        }
+        .lg-fab:hover {
+          transform: scale(1.08);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.25);
+        }
+        .lg-fab:active {
+          transform: scale(0.96);
+        }
+        .lg-fab-icon {
+          transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+          display: flex; align-items: center; justify-content: center;
+        }
+        .lg-fab-icon.open {
+          transform: rotate(180deg);
+        }
+        .lg-fab-badge {
+          position: absolute;
+          top: -4px; right: -4px;
+          min-width: 20px; height: 20px;
+          background: rgba(255,255,255,0.20);
+          border: 1px solid rgba(255,255,255,0.35);
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+          border-radius: 10px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 9px; font-weight: 900;
+          color: #fff;
+          padding: 0 4px;
+        }
+
+        /* --- Input Bar --- */
+        @keyframes lg-shimmer {
+          0%   { background-position: 200% center; }
+          100% { background-position: -200% center; }
+        }
+        .lg-input-bar {
+          background: var(--lg-input-bg);
+          -webkit-backdrop-filter: blur(16px);
+          backdrop-filter: blur(16px);
+          border-top: 1px solid var(--lg-border);
+          transition: background 200ms ease;
+        }
+        .lg-input-bar:focus-within {
+          background: rgba(255,255,255,0.12);
+        }
+        .dark .lg-input-bar:focus-within {
+          background: rgba(255,255,255,0.10);
+        }
+        .lg-input-bar.lg-processing {
+          background: linear-gradient(90deg, transparent, rgba(14,165,233,0.12), transparent);
+          background-size: 200% 100%;
+          animation: lg-shimmer 2s linear infinite;
+        }
+        .lg-send-btn {
+          background: linear-gradient(135deg, var(--lg-c1), var(--lg-c3));
+          border: none;
+          border-radius: 8px;
+          color: #fff;
+          padding: 6px 8px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          transition: transform 150ms ease, opacity 150ms ease;
+        }
+        .lg-send-btn:hover {
+          transform: scale(1.1);
+        }
+        .lg-send-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        /* --- Quick Action Chips --- */
+        .lg-chip {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid var(--lg-border);
+          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+          color: var(--lg-c2);
+          border-radius: 999px;
+          padding: 3px 10px;
+          font-size: 9px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background 150ms ease, color 150ms ease;
+          flex-shrink: 0;
+        }
+        .lg-chip:hover {
+          background: rgba(255,255,255,0.18);
+          color: var(--lg-c3);
+        }
+        .lg-chip:active {
+          transform: scale(0.95);
+          transition: transform 100ms ease;
+        }
+
+        /* Quick action chips row */
+        .lg-chips-row {
+          padding: 6px 8px;
+          border-top: 1px solid var(--lg-border);
+          background: transparent;
+          display: flex;
+          gap: 4px;
+          overflow-x: auto;
+          flex-shrink: 0;
+        }
+        .lg-chips-row::-webkit-scrollbar { display: none; }
+
+        /* Voice waveform bar */
+        .lg-voice-bar {
+          border-top: 1px solid var(--lg-border);
+          background: rgba(var(--color-primary) / 0.04);
+          animation: lg-voice-fadein 200ms ease forwards;
+        }
+        @keyframes lg-voice-fadein {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === PERFORMANCE QUALITY MODES === */
+        .perf-low * { animation: none !important; transition: none !important; }
+        .perf-low .lg-orb { display: none !important; }
+        .perf-low .btn-premium::after { display: none !important; }
+
+        /* === CINEMATIC LOADING SCREEN === */
+        @keyframes grain {
+          0%,100% { transform: translate(0,0); }
+          10% { transform: translate(-1%,-1%); }
+          20% { transform: translate(1%,1%); }
+          30% { transform: translate(-1%,1%); }
+          40% { transform: translate(1%,-1%); }
+          50% { transform: translate(-1%,0); }
+          60% { transform: translate(1%,0); }
+          70% { transform: translate(0,-1%); }
+          80% { transform: translate(0,1%); }
+          90% { transform: translate(-1%,-1%); }
+        }
+        .film-grain::after {
+          content: '';
+          position: fixed; inset: 0; z-index: 1;
+          pointer-events: none;
+          opacity: 0.04;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+          animation: grain 0.5s steps(1) infinite;
+        }
+        @keyframes filmstrip-scroll {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .filmstrip-scroll { animation: filmstrip-scroll 8s linear infinite; }
+        @keyframes tip-fade {
+          0% { opacity: 0; transform: translateY(8px); }
+          15% { opacity: 1; transform: translateY(0); }
+          85% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-8px); }
+        }
+        .tip-animate { animation: tip-fade 2.2s ease-in-out forwards; }
+        @keyframes logo-glow {
+          0%,100% { filter: drop-shadow(0 0 20px rgba(234,179,8,0.3)); }
+          50% { filter: drop-shadow(0 0 40px rgba(234,179,8,0.7)) drop-shadow(0 0 80px rgba(6,182,212,0.3)); }
+        }
+        .logo-glow { animation: logo-glow 3s ease-in-out infinite; }
+        @keyframes load-progress {
+          0% { width: 0%; }
+          30% { width: 35%; }
+          60% { width: 65%; }
+          85% { width: 88%; }
+          100% { width: 100%; }
+        }
+        .load-progress { animation: load-progress 4.5s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+        /* Shot color tags */
+        .shot-tag-red    { border-left: 3px solid #ef4444 !important; }
+        .shot-tag-amber  { border-left: 3px solid #f59e0b !important; }
+        .shot-tag-green  { border-left: 3px solid #22c55e !important; }
+        .shot-tag-blue   { border-left: 3px solid #3b82f6 !important; }
+        .shot-tag-purple { border-left: 3px solid #a855f7 !important; }
+        .shot-tag-pink   { border-left: 3px solid #ec4899 !important; }
+
+        /* Settings Modal */
+        .settings-overlay {
+          position: fixed; inset: 0; z-index: 9999;
+          background: rgba(0,0,0,0.6);
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+          display: flex; align-items: center; justify-content: center;
+          padding: 16px;
+        }
+        .settings-panel {
+          width: 100%; max-width: 520px; max-height: 90vh;
+          overflow-y: auto;
+          border-radius: 12px;
+          background: var(--panel-bg, #1a1a1a);
+          border: 1px solid var(--panel-border, #333);
+          box-shadow: 0 32px 64px rgba(0,0,0,0.5);
+          animation: settings-in 0.25s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        .dark .settings-panel { --panel-bg: #1a1a1a; --panel-border: #333; }
+        .settings-panel { --panel-bg: #f5f5f5; --panel-border: #d4d4d4; }
+        @keyframes settings-in {
+          from { opacity: 0; transform: scale(0.94) translateY(12px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .perf-slider {
+          -webkit-appearance: none; appearance: none;
+          width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
+          background: linear-gradient(to right, rgb(var(--color-primary)) var(--val, 50%), rgba(128,128,128,0.3) var(--val, 50%));
+        }
+        .perf-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          width: 16px; height: 16px; border-radius: 50%;
+          background: rgb(var(--color-primary));
+          box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.25);
+          cursor: pointer; transition: transform 150ms ease;
+        }
+        .perf-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        .perf-toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .perf-toggle input { opacity: 0; width: 0; height: 0; }
+        .perf-toggle-track {
+          position: absolute; inset: 0; border-radius: 11px; cursor: pointer;
+          background: rgba(128,128,128,0.3); transition: background 200ms ease;
+        }
+        .perf-toggle input:checked + .perf-toggle-track { background: rgb(var(--color-primary)); }
+        .perf-toggle-thumb {
+          position: absolute; top: 3px; left: 3px;
+          width: 16px; height: 16px; border-radius: 50%;
+          background: white; transition: transform 200ms ease;
+          pointer-events: none;
+        }
+        .perf-toggle input:checked ~ .perf-toggle-thumb { transform: translateX(18px); }
+    </style>
+</head>
+<body>
+<!-- ── Cinematic AI Filmmaker Style ── -->
+    <div id="instant-splash" style="position:fixed;inset:0;z-index:99999;background:#050508;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;">
+    <style>
+        @keyframes scan{0%{top:-5%}100%{top:105%}}
+        @keyframes apt{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes ring{0%{transform:scale(0.8);opacity:0.6}100%{transform:scale(2.8);opacity:0}}
+        @keyframes fsu{0%{opacity:0;transform:translateY(14px)}12%{opacity:1;transform:translateY(0)}85%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-10px)}}
+        @keyframes hscroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @keyframes gr{0%,100%{transform:translate(0,0)}25%{transform:translate(-1px,-1px)}50%{transform:translate(1px,1px)}75%{transform:translate(-1px,1px)}}
+        @keyframes of1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-40px)}}
+        @keyframes of2{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,30px)}}
+        @keyframes prog{0%{width:0}25%{width:18%}55%{width:60%}80%{width:83%}100%{width:96%}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        #sp-grain{animation:gr 0.35s steps(1) infinite;position:absolute;inset:0;opacity:0.025;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+        #sp-scan{animation:scan 5s linear infinite;position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent);pointer-events:none;z-index:3;}
+        #sp-apt{animation:apt 10s linear infinite;transform-origin:center;}
+        .sp-ring{animation:ring 2.5s ease-out infinite;}
+        .sp-ring2{animation:ring 2.5s ease-out infinite;animation-delay:1.2s;}
+        #sp-tip{animation:fsu 3.8s ease-in-out forwards;}
+        .sp-scroll{animation:hscroll 14s linear infinite;display:flex;white-space:nowrap;}
+        .sp-scroll-r{animation:hscroll 18s linear infinite reverse;display:flex;white-space:nowrap;}
+        #sp-bar{animation:prog 7s cubic-bezier(0.4,0,0.2,1) forwards;}
+        .sp-orb1{animation:of1 9s ease-in-out infinite;}
+        .sp-orb2{animation:of2 12s ease-in-out infinite;}
+        #sp-cursor{animation:blink 1s step-end infinite;}
+    </style>
+
+    <div id="sp-grain"></div>
+    <div id="sp-scan"></div>
+
+    <!-- Orbs -->
+    <div class="sp-orb1" style="position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,0.07),transparent);top:-200px;left:-200px;filter:blur(100px);pointer-events:none;"></div>
+    <div class="sp-orb2" style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(6,182,212,0.05),transparent);bottom:-150px;right:-150px;filter:blur(100px);pointer-events:none;"></div>
+
+    <!-- Top ticker -->
+    <div style="position:absolute;top:0;left:0;right:0;height:30px;background:rgba(0,0,0,0.7);border-bottom:1px solid rgba(59,130,246,0.12);overflow:hidden;display:flex;align-items:center;z-index:2;">
+        <div style="background:#3b82f6;color:#fff;font-size:7px;font-weight:900;letter-spacing:0.2em;padding:0 10px;height:100%;display:flex;align-items:center;flex-shrink:0;">MOKHA AI</div>
+        <div style="overflow:hidden;flex:1;">
+            <div class="sp-scroll">
+                <span style="color:rgba(59,130,246,0.5);font-size:8px;letter-spacing:0.15em;padding:0 16px;">CHAIN MODE · SHOTIFY · STORY WIZARD 2.0 · GENRE DNA · RHYTHM ANALYZER · 27 PRESETS · CONTINUITY LOCK · PROMPT MUTATION · REVISION HISTORY · FIND &amp; REPLACE · SHOT LOCKING · COLOR TAGS · TOKEN COUNTER · PLATFORM COST ESTIMATOR ·&nbsp;</span>
+                <span style="color:rgba(59,130,246,0.5);font-size:8px;letter-spacing:0.15em;padding:0 16px;">CHAIN MODE · SHOTIFY · STORY WIZARD 2.0 · GENRE DNA · RHYTHM ANALYZER · 27 PRESETS · CONTINUITY LOCK · PROMPT MUTATION · REVISION HISTORY · FIND &amp; REPLACE · SHOT LOCKING · COLOR TAGS · TOKEN COUNTER · PLATFORM COST ESTIMATOR ·&nbsp;</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom ticker -->
+    <div style="position:absolute;bottom:0;left:0;right:0;height:30px;background:rgba(0,0,0,0.7);border-top:1px solid rgba(6,182,212,0.08);overflow:hidden;display:flex;align-items:center;z-index:2;">
+        <div style="background:rgba(6,182,212,0.12);border-right:1px solid rgba(6,182,212,0.2);color:rgba(6,182,212,0.7);font-size:7px;font-weight:900;letter-spacing:0.2em;padding:0 10px;height:100%;display:flex;align-items:center;flex-shrink:0;">DIRECTORS</div>
+        <div style="overflow:hidden;flex:1;">
+            <div class="sp-scroll-r">
+                <span style="color:rgba(255,255,255,0.15);font-size:8px;letter-spacing:0.1em;padding:0 16px;">KUBRICK: "If it can be written, it can be filmed." · NOLAN: "Every frame is a decision." · VILLENEUVE: "Cinema is a mirror." · FINCHER: "Every cut tells a story." · WONG KAR-WAI: "The camera is my pen." · SPIELBERG: "Every story has a heartbeat." ·&nbsp;</span>
+                <span style="color:rgba(255,255,255,0.15);font-size:8px;letter-spacing:0.1em;padding:0 16px;">KUBRICK: "If it can be written, it can be filmed." · NOLAN: "Every frame is a decision." · VILLENEUVE: "Cinema is a mirror." · FINCHER: "Every cut tells a story." · WONG KAR-WAI: "The camera is my pen." · SPIELBERG: "Every story has a heartbeat." ·&nbsp;</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main layout -->
+    <div style="position:absolute;inset:30px;display:flex;align-items:center;justify-content:center;gap:48px;padding:0 40px;">
+
+        <!-- LEFT: Logo + animated glow border -->
+        <style>
+            @property --logo-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+            @keyframes logo-border-spin { to { --logo-angle: 360deg; } }
+            @keyframes logo-outer-glow {
+                0%,100% { opacity: 0.5; }
+                50%     { opacity: 0.9; }
+            }
+            /* Wrapper: just positions the ring and glow behind the image */
+            .logo-splash-wrap {
+                position: relative;
+                width: 140px;
+                height: 140px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            /* Spinning color ring — sits behind the image, only visible as outer glow */
+            .logo-splash-ring {
+                position: absolute;
+                inset: -4px;
+                border-radius: 26px;
+                background: conic-gradient(from var(--logo-angle), #3b82f6, #06b6d4, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+                animation: logo-border-spin 3s linear infinite;
+                z-index: 0;
+                filter: blur(8px);
+                opacity: 0.8;
+            }
+            /* Extra sharp thin border ring */
+            .logo-splash-ring::before {
+                content: '';
+                position: absolute;
+                inset: 4px;
+                border-radius: 22px;
+                background: conic-gradient(from var(--logo-angle), #3b82f6, #06b6d4, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+                animation: logo-border-spin 3s linear infinite;
+                filter: none;
+                opacity: 1;
+            }
+            /* Blurred glow halo behind everything */
+            .logo-splash-ring::after {
+                content: '';
+                position: absolute;
+                inset: -10px;
+                border-radius: 32px;
+                background: conic-gradient(from var(--logo-angle), #3b82f6, #06b6d4, #8b5cf6, #ec4899, #f59e0b, #3b82f6);
+                filter: blur(20px);
+                opacity: 0.45;
+                z-index: -1;
+                animation: logo-border-spin 3s linear infinite, logo-outer-glow 2s ease-in-out infinite;
+            }
+            /* The actual logo image — sits on top, fully covers the ring */
+            .logo-splash-img {
+                position: relative;
+                z-index: 1;
+                width: 140px;
+                height: 140px;
+                border-radius: 22px;
+                object-fit: cover;
+                display: block;
+            }
+        </style>
+        <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+            <div class="logo-splash-wrap">
+                <div class="logo-splash-ring"></div>
+                <img class="logo-splash-img" src="logo.png" alt="MOKHA FILM"
+                    onerror="this.src='logo.png';this.onerror=null;"/>
+            </div>
+            <div style="margin-top:16px;display:flex;align-items:center;gap:6px;">
+                <div style="width:5px;height:5px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px #3b82f6;animation:blink 1.5s ease-in-out infinite;"></div>
+                <span style="color:rgba(59,130,246,0.6);font-size:8px;letter-spacing:0.2em;">INITIALIZING</span>
+            </div>
+        </div>
+
+        <!-- RIGHT: Content -->
+        <div style="flex:1;max-width:380px;display:flex;flex-direction:column;gap:14px;">
+
+            <!-- Terminal header -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                <div style="width:7px;height:7px;border-radius:50%;background:#ef4444;"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:#eab308;"></div>
+                <div style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></div>
+                <span style="color:rgba(255,255,255,0.15);font-size:8px;letter-spacing:0.15em;margin-left:8px;">MOKHA_SUITE_PRO — CINEMATIC AI ENGINE</span>
+            </div>
+            <!-- Designer credit -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <span style="color:rgba(59,130,246,0.35);font-size:7px;letter-spacing:0.2em;font-family:ui-monospace,monospace;">DESIGNED &amp; DEVELOPED BY</span>
+                <span style="color:rgba(59,130,246,0.65);font-size:7px;letter-spacing:0.2em;font-family:ui-monospace,monospace;font-weight:900;">CHARLES EMILSON</span>
+                <span style="color:rgba(255,255,255,0.12);font-size:7px;letter-spacing:0.15em;font-family:ui-monospace,monospace;">· SENIOR FILMMAKER</span>
+            </div>
+
+            <!-- Tip card -->
+            <div id="sp-tip" style="background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.12);border-radius:12px;padding:16px 18px;min-height:96px;">
+                <div id="sp-tip-cat" style="font-size:8px;font-weight:900;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;color:#3b82f6;">⚡ FEATURE</div>
+                <div id="sp-tip-text" style="font-size:13px;color:rgba(255,255,255,0.65);line-height:1.7;">Chain Mode — define your scene once, add shots by typing only the action. 80% less typing.</div>
+            </div>
+
+            <!-- Command line -->
+            <div style="background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:8px;">
+                <span style="color:#22c55e;font-size:10px;">$</span>
+                <span id="sp-cmd" style="color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:0.05em;">mokha --init --mode filmmaker</span>
+                <span id="sp-cursor" style="color:#3b82f6;font-size:12px;">▋</span>
+            </div>
+
+            <!-- Progress -->
+            <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                    <span style="color:rgba(255,255,255,0.15);font-size:7px;letter-spacing:0.15em;">LOADING MODULES</span>
+                    <span id="sp-pct" style="color:rgba(59,130,246,0.5);font-size:7px;letter-spacing:0.1em;">0%</span>
+                </div>
+                <div style="height:2px;background:rgba(255,255,255,0.04);border-radius:2px;overflow:hidden;">
+                    <div id="sp-bar" style="height:100%;background:linear-gradient(90deg,#3b82f6,#06b6d4);border-radius:2px;width:0;"></div>
+                </div>
+            </div>
+
+            <!-- Dots -->
+            <div id="sp-dots" style="display:flex;gap:5px;"></div>
+
+            <!-- Skip -->
+            <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="sp-skip" style="width:10px;height:10px;accent-color:#3b82f6;cursor:pointer;"
+                    onchange="localStorage.setItem('mokha_skip_tutorial',this.checked)"/>
+                <label for="sp-skip" style="color:rgba(255,255,255,0.15);font-size:7px;letter-spacing:0.12em;cursor:pointer;">SKIP ON NEXT LAUNCH</label>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+    (function(){
+        var TIPS=[
+            {cat:'⚡ FEATURE',color:'#3b82f6',text:'Chain Mode — define your scene once, add shots by typing only the action. 80% less typing.'},
+            {cat:'⚡ FEATURE',color:'#06b6d4',text:'Shotify compresses your prompt for Runway, Veo 3, KLING or Seedance in one click.'},
+            {cat:'🎬 FEATURE',color:'#a855f7',text:'Story Wizard 2.0 — from raw idea to full cinematic project in 12 guided steps.'},
+            {cat:'🔒 FEATURE',color:'#eab308',text:'Continuity Lock — lock lighting, camera or style across all shots. Change once, update everywhere.'},
+            {cat:'🎭 FEATURE',color:'#22c55e',text:'Genre DNA detects your film fingerprint — Noir, Thriller, Sci-Fi, Fantasy and more.'},
+            {cat:'💡 FILMMAKING',color:'#eab308',text:'85mm lens + Studio Lighting + OTS = the perfect dialogue shot. Every time.'},
+            {cat:'💡 FILMMAKING',color:'#eab308',text:'Dutch Angle signals psychological unease. Use it sparingly — overuse kills the effect.'},
+            {cat:'💡 FILMMAKING',color:'#eab308',text:'Dolly In on a Close-Up creates intimacy. Dolly Out on a Wide Shot creates isolation.'},
+            {cat:'💡 FILMMAKING',color:'#eab308',text:'Golden Hour lasts ~20 minutes. Villeneuve shot almost every Blade Runner 2049 exterior during this window.'},
+            {cat:'🤖 AI TIP',color:'#06b6d4',text:'For Runway: use [Camera: X] [Lighting: Y] format. Runway reads bracketed tags better than full sentences.'},
+            {cat:'🤖 AI TIP',color:'#06b6d4',text:'Veo 3 is the only AI platform that generates real audio. Fill in SFX and BGM fields for best results.'},
+            {cat:'🤖 AI TIP',color:'#06b6d4',text:'Seedance works best with ultra-short prompts. Enable Shotify and select Seedance for optimal results.'},
+            {cat:'🧙 MOKHA AGENT',color:'#a855f7',text:'"start chain noir scene with Marcus in the warehouse" — agent builds the full setup in one command.'},
+            {cat:'🧙 MOKHA AGENT',color:'#a855f7',text:'"load the reveal sequence" — agent adds 5 pre-built shots: EWS → WS → MS → CU → ECU instantly.'},
+            {cat:'🧙 MOKHA AGENT',color:'#a855f7',text:'"lock lighting" — agent locks your current lighting across all shots in the scene instantly.'},
+        ];
+        var CMDS=['mokha --init --mode filmmaker','loading cinematic engine...','importing director styles...','calibrating shot parameters...','activating chain mode...','connecting ai platforms...','ready to direct.'];
+        var cur=Math.floor(Math.random()*TIPS.length),cmdIdx=0,prog=0;
+        var tipEl=document.getElementById('sp-tip');
+        var catEl=document.getElementById('sp-tip-cat');
+        var txtEl=document.getElementById('sp-tip-text');
+        var dotsEl=document.getElementById('sp-dots');
+        var barEl=document.getElementById('sp-bar');
+        var pctEl=document.getElementById('sp-pct');
+        var cmdEl=document.getElementById('sp-cmd');
+
+        TIPS.forEach(function(_,i){
+            var d=document.createElement('div');
+            d.id='spd'+i;
+            d.style.cssText='width:4px;height:4px;border-radius:50%;background:#111;transition:all 0.3s;flex-shrink:0;';
+            dotsEl.appendChild(d);
+        });
+
+        function updateDots(i){
+            TIPS.forEach(function(t,j){
+                var d=document.getElementById('spd'+j);
+                if(!d)return;
+                if(j===i){d.style.width='14px';d.style.borderRadius='2px';d.style.background=TIPS[i].color;}
+                else{d.style.width='4px';d.style.borderRadius='50%';d.style.background='#111';}
+            });
+        }
+
+        function showTip(i){
+            var t=TIPS[i];
+            tipEl.style.animation='none';
+            tipEl.offsetHeight;
+            tipEl.style.animation='fsu 3.8s ease-in-out forwards';
+            tipEl.style.borderColor=t.color+'20';
+            catEl.style.color=t.color;
+            catEl.textContent=t.cat;
+            txtEl.textContent=t.text;
+            updateDots(i);
+        }
+
+        function updateCmd(){cmdEl.textContent=CMDS[cmdIdx%CMDS.length];cmdIdx++;}
+
+        var progInterval=setInterval(function(){
+            prog=Math.min(96,prog+(Math.random()*2.5));
+            if(pctEl)pctEl.textContent=Math.round(prog)+'%';
+        },200);
+
+        showTip(cur);updateCmd();
+        var tipInterval=setInterval(function(){cur=(cur+1)%TIPS.length;showTip(cur);},3800);
+        var cmdInterval=setInterval(updateCmd,2200);
+
+        if(localStorage.getItem('mokha_skip_tutorial')==='true'){
+            var sk=document.getElementById('sp-skip');
+            if(sk)sk.checked=true;
+            // Only skip if user explicitly set the flag AND this is not the first time
+            // We check by seeing if the app has been loaded before (mokha_projects exists)
+            var hasProjects = !!localStorage.getItem('mokha_projects');
+            if(hasProjects){
+                var splashEl=document.getElementById('instant-splash');
+                if(splashEl && splashEl.parentNode) splashEl.parentNode.removeChild(splashEl);
+            }
+        }
+
+        window.__removeSplash=function(){
+            clearInterval(tipInterval);clearInterval(cmdInterval);clearInterval(progInterval);
+            var s=document.getElementById('instant-splash');
+            if(s){s.style.transition='opacity 0.5s ease';s.style.opacity='0';setTimeout(function(){if(s.parentNode)s.parentNode.removeChild(s);},500);}
+        };
+    })();
+    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <script>
-      // Load the mokha-suite HTML directly
-      fetch('./mokha-suite-pro.html')
-        .then(r => r.text())
-        .then(html => {
-          document.documentElement.innerHTML = html;
-        })
-        .catch(err => {
-          console.error('Failed to load app:', err);
-          document.body.innerHTML = '<h1>Error loading app</h1>';
-        });
-    </script>
-  </body>
+</body>
 </html>
